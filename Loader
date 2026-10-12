@@ -1,0 +1,433 @@
+local Rot = {}
+Rot.__index = Rot
+
+local Players           = game:GetService("Players")
+local UserInputService  = game:GetService("UserInputService")
+local RunService        = game:GetService("RunService")
+local TweenService      = game:GetService("TweenService")
+local CoreGui           = game:GetService("CoreGui")
+
+local LocalPlayer       = Players.LocalPlayer
+local Mouse             = LocalPlayer:GetMouse()
+
+local Theme = {
+    Background      = Color3.fromRGB(20, 20, 24),
+    Surface         = Color3.fromRGB(28, 28, 33),
+    SurfaceAlt      = Color3.fromRGB(36, 36, 42),
+    Stroke          = Color3.fromRGB(50, 50, 58),
+    Text            = Color3.fromRGB(240, 240, 245),
+    TextDim         = Color3.fromRGB(150, 150, 160),
+    Accent          = Color3.fromRGB(120, 90, 255),
+    AccentDim       = Color3.fromRGB(90, 65, 200),
+    Danger          = Color3.fromRGB(230, 80, 90),
+    Warning         = Color3.fromRGB(240, 190, 80),
+    Success         = Color3.fromRGB(80, 210, 130),
+    Shadow          = Color3.fromRGB(0, 0, 0),
+}
+
+local ROT_NAMES = { "RotUI", "RotUI_Instance", "RotUI_Registry" }
+
+local function nukeRot()
+    local roots = {}
+    pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
+    pcall(function() table.insert(roots, LocalPlayer:FindFirstChild("PlayerGui")) end)
+    pcall(function() table.insert(roots, game:GetService("Players")) end)
+
+    for _, root in ipairs(roots) do
+        if root then
+            for _, child in ipairs(root:GetChildren()) do
+                local n = child.Name
+                if child:IsA("ScreenGui")
+                and (n == "RotUI" or n:sub(1, 6) == "RotUI_") then
+                    pcall(function() child.Enabled = false end)
+                    pcall(function() child:Destroy() end)
+                end
+            end
+        end
+    end
+
+    if _G.Rot then
+        pcall(function()
+            if type(_G.Rot.Destroy) == "function" then _G.Rot:Destroy() end
+            if type(_G.Rot.Close)   == "function" then _G.Rot:Close()   end
+        end)
+        _G.Rot = nil
+    end
+
+    if getgenv then
+        local genv = getgenv()
+        if genv and genv.Rot then
+            pcall(function()
+                if type(genv.Rot.Destroy) == "function" then genv.Rot:Destroy() end
+                if type(genv.Rot.Close)   == "function" then genv.Rot:Close()   end
+            end)
+            genv.Rot = nil
+        end
+    end
+
+    if shared and shared.Rot then
+        pcall(function()
+            if type(shared.Rot.Destroy) == "function" then shared.Rot:Destroy() end
+            if type(shared.Rot.Close)   == "function" then shared.Rot:Close()   end
+        end)
+        shared.Rot = nil
+    end
+end
+
+nukeRot()
+
+local function getParent()
+    local ok, suc = pcall(function()
+        return game:GetService("CoreGui")
+    end)
+    if ok and suc then return suc end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local function new(inst, props)
+    local o = Instance.new(inst)
+    for k, v in pairs(props or {}) do
+        o[k] = v
+    end
+    return o
+end
+
+local function corner(parent, r)
+    return new("UICorner", { CornerRadius = UDim.new(0, r or 8), Parent = parent })
+end
+
+local function stroke(parent, color, thickness, transparency)
+    return new("UIStroke", {
+        Color = color or Theme.Stroke,
+        Thickness = thickness or 1,
+        Transparency = transparency or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Parent = parent,
+    })
+end
+
+local function pad(parent, t, r, b, l)
+    return new("UIPadding", {
+        PaddingTop    = UDim.new(0, t or 0),
+        PaddingRight  = UDim.new(0, r or t or 0),
+        PaddingBottom = UDim.new(0, b or t or 0),
+        PaddingLeft   = UDim.new(0, l or r or t or 0),
+        Parent = parent,
+    })
+end
+
+local function tween(inst, time, props, style, dir)
+    local t = TweenService:Create(
+        inst,
+        TweenInfo.new(time or 0.15, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out),
+        props
+    )
+    t:Play()
+    return t
+end
+
+local function makeDraggable(frame, handle)
+    handle = handle or frame
+    local dragging, dragStart, startPos = false, nil, nil
+
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    handle.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+local function windowButton(parent, glyph, hoverColor)
+    local btn = new("TextButton", {
+        Name = "WinBtn_" .. glyph,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(36, 28),
+        Font = Enum.Font.Gotham,
+        Text = glyph,
+        TextColor3 = Theme.TextDim,
+        TextSize = 14,
+        AutoButtonColor = false,
+        Parent = parent,
+    })
+    corner(btn, 6)
+
+    btn.MouseEnter:Connect(function()
+        tween(btn, 0.12, { BackgroundTransparency = 0, BackgroundColor3 = hoverColor or Theme.SurfaceAlt })
+        tween(btn, 0.12, { TextColor3 = Theme.Text })
+    end)
+    btn.MouseLeave:Connect(function()
+        tween(btn, 0.12, { BackgroundTransparency = 1 })
+        tween(btn, 0.12, { TextColor3 = Theme.TextDim })
+    end)
+    btn.MouseButton1Down:Connect(function()
+        tween(btn, 0.08, { BackgroundColor3 = Theme.AccentDim })
+    end)
+    btn.MouseButton1Up:Connect(function()
+        tween(btn, 0.12, { BackgroundColor3 = hoverColor or Theme.SurfaceAlt })
+    end)
+
+    return btn
+end
+
+function Rot:CreateWindow(cfg)
+    cfg = cfg or {}
+    local title    = cfg.Title or "Rot"
+    local subtitle = cfg.Subtitle or "UI Library"
+    local size     = cfg.Size or UDim2.fromOffset(600, 400)
+    local toggleKey = cfg.ToggleKey or Enum.KeyCode.RightShift
+    local parent   = cfg.Parent or getParent()
+
+    local gui = new("ScreenGui", {
+        Name = "RotUI_" .. tostring(math.random(1e6, 9e6)),
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true,
+        DisplayOrder = 9999,
+        Parent = parent,
+    })
+
+    local shadow = new("Frame", {
+        Name = "Shadow",
+        BackgroundColor3 = Theme.Shadow,
+        BackgroundTransparency = 0.55,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 6, 0, 6),
+        Size = size,
+        ZIndex = 0,
+        Parent = gui,
+    })
+    corner(shadow, 14)
+
+    local win = new("Frame", {
+        Name = "Window",
+        BackgroundColor3 = Theme.Background,
+        BorderSizePixel = 0,
+        Size = size,
+        Position = UDim2.new(0.5, -size.X.Offset / 2, 0.5, -size.Y.Offset / 2),
+        ClipsDescendants = true,
+        ZIndex = 2,
+        Parent = gui,
+    })
+    corner(win, 12)
+    stroke(win, Theme.Stroke, 1, 0.2)
+
+    local accent = new("Frame", {
+        Name = "Accent",
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 2),
+        ZIndex = 3,
+        Parent = win,
+    })
+
+    local titleBar = new("Frame", {
+        Name = "TitleBar",
+        BackgroundColor3 = Theme.Surface,
+        BackgroundTransparency = 0.35,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 42),
+        ZIndex = 3,
+        Parent = win,
+    })
+
+    local titleLbl = new("TextLabel", {
+        Name = "Title",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 14, 0, 0),
+        Size = UDim2.new(0.5, 0, 1, 0),
+        Font = Enum.Font.GothamBold,
+        Text = title,
+        TextColor3 = Theme.Text,
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 4,
+        Parent = titleBar,
+    })
+
+    local subPill = new("TextLabel", {
+        Name = "Subtitle",
+        BackgroundColor3 = Theme.SurfaceAlt,
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 14 + titleLbl.TextBounds.X + 12, 0, 11),
+        Size = UDim2.fromOffset(math.max(60, #subtitle * 8 + 16), 20),
+        Font = Enum.Font.GothamMedium,
+        Text = "  " .. subtitle .. "  ",
+        TextColor3 = Theme.TextDim,
+        TextSize = 11,
+        ZIndex = 4,
+        Parent = titleBar,
+    })
+    corner(subPill, 10)
+
+    local btnRail = new("Frame", {
+        Name = "BtnRail",
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -8, 0, 7),
+        Size = UDim2.fromOffset(120, 28),
+        ZIndex = 4,
+        Parent = titleBar,
+    })
+
+    local layout = new("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 2),
+        Parent = btnRail,
+    })
+
+    local minBtn  = windowButton(btnRail, "—", Theme.SurfaceAlt)
+    local maxBtn  = windowButton(btnRail, "▢", Theme.SurfaceAlt)
+    local closeBtn= windowButton(btnRail, "✕", Theme.Danger)
+
+    local state = {
+        Minimized = false,
+        Fullscreen = false,
+        Visible = true,
+        OriginalSize = size,
+        OriginalPos = win.Position,
+    }
+
+    minBtn.MouseButton1Click:Connect(function()
+        state.Minimized = not state.Minimized
+        if state.Minimized then
+            for _, child in ipairs(win:GetChildren()) do
+                if child.Name == "Body" then
+                    child.Visible = false
+                end
+            end
+            tween(win, 0.2, { Size = UDim2.new(0, size.X.Offset, 0, 42) })
+            tween(shadow, 0.2, { Size = UDim2.new(0, size.X.Offset, 0, 42) })
+        else
+            for _, child in ipairs(win:GetChildren()) do
+                if child.Name == "Body" then
+                    child.Visible = true
+                end
+            end
+            tween(win, 0.2, { Size = size })
+            tween(shadow, 0.2, { Size = size })
+        end
+    end)
+
+    maxBtn.MouseButton1Click:Connect(function()
+        state.Fullscreen = not state.Fullscreen
+        if state.Fullscreen then
+            state.OriginalSize = win.Size
+            state.OriginalPos = win.Position
+            tween(win, 0.22, {
+                Size = UDim2.new(0, 900, 0, 600),
+                Position = UDim2.new(0.5, -450, 0.5, -300),
+            })
+            tween(shadow, 0.22, {
+                Size = UDim2.new(0, 900, 0, 600),
+                Position = UDim2.new(0.5, -444, 0.5, -294),
+            })
+        else
+            tween(win, 0.22, {
+                Size = state.OriginalSize,
+                Position = state.OriginalPos,
+            })
+            tween(shadow, 0.22, {
+                Size = state.OriginalSize,
+                Position = UDim2.new(
+                    state.OriginalPos.X.Scale, state.OriginalPos.X.Offset + 6,
+                    state.OriginalPos.Y.Scale, state.OriginalPos.Y.Offset + 6
+                ),
+            })
+        end
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        tween(win, 0.18, { Size = UDim2.new(0, size.X.Offset, 0, 0) })
+        tween(win, 0.18, { BackgroundTransparency = 1 })
+        task.wait(0.18)
+        gui:Destroy()
+    end)
+
+    makeDraggable(win, titleBar)
+
+    local body = new("Frame", {
+        Name = "Body",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 0, 0, 42),
+        Size = UDim2.new(1, 0, 1, -42),
+        ZIndex = 3,
+        Parent = win,
+    })
+    pad(body, 10)
+
+    if toggleKey then
+        UserInputService.InputBegan:Connect(function(input, gpe)
+            if gpe then return end
+            if input.KeyCode == toggleKey then
+                state.Visible = not state.Visible
+                gui.Enabled = state.Visible
+            end
+        end)
+    end
+
+    local api = {}
+    api.Gui       = gui
+    api.Window    = win
+    api.Body      = body
+    api.TitleBar  = titleBar
+    api.Shadow    = shadow
+    api.Theme     = Theme
+    api.State     = state
+    api.Close     = function()
+        pcall(function() gui.Enabled = false end)
+        pcall(function() gui:Destroy() end)
+    end
+    api.Toggle    = function() state.Visible = not state.Visible; gui.Enabled = state.Visible end
+    api.Destroy   = api.Close
+
+    api.AddSection = function(opts)
+        opts = opts or {}
+        local sec = new("Frame", {
+            Name = opts.Name or "Section",
+            BackgroundColor3 = Theme.Surface,
+            BackgroundTransparency = 0,
+            BorderSizePixel = 0,
+            Size = opts.Size or UDim2.new(1, 0, 0, 120),
+            Position = opts.Position or UDim2.new(0, 0, 0, 0),
+            Parent = body,
+        })
+        corner(sec, 10)
+        stroke(sec, Theme.Stroke, 1, 0.5)
+        return sec
+    end
+
+    Rot.Instance = api
+    _G.Rot = Rot
+    if getgenv then getgenv().Rot = Rot end
+    if shared then shared.Rot = Rot end
+
+    return api, Rot
+end
+
+return Rot
