@@ -5,43 +5,41 @@ local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
 local TweenService      = game:GetService("TweenService")
 local RunService        = game:GetService("RunService")
+local HttpService       = game:GetService("HttpService")
 
-local LocalPlayer       = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
-local PREFIX = "RotUI_"
-local LIVE_REGISTRY_KEY = "__RotLiveRegistries"
-
-local Palette = {
-    Bg          = Color3.fromRGB(24, 24, 28),
-    Panel       = Color3.fromRGB(32, 32, 38),
-    Panel2      = Color3.fromRGB(40, 40, 47),
-    Panel3      = Color3.fromRGB(48, 48, 56),
-    Stroke      = Color3.fromRGB(58, 58, 66),
-    StrokeSoft  = Color3.fromRGB(44, 44, 51),
-    Text        = Color3.fromRGB(238, 238, 244),
-    TextDim     = Color3.fromRGB(155, 155, 168),
-    TextFaint   = Color3.fromRGB(105, 105, 118),
-    Accent      = Color3.fromRGB(120, 140, 255),
-    AccentDim   = Color3.fromRGB(88, 105, 200),
-    AccentSoft  = Color3.fromRGB(52, 62, 110),
-    Good        = Color3.fromRGB(92, 200, 140),
-    Warn        = Color3.fromRGB(228, 178, 86),
-    Bad         = Color3.fromRGB(228, 92, 100),
-    Shadow      = Color3.fromRGB(0, 0, 0),
-}
+local PREFIX       = "RotUI_"
+local REGISTRY_KEY = "__RotLiveRegistries"
 
 local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 local UISCALE   = IS_MOBILE and 0.92 or 1
-local MIN_W, MIN_H = 340, 240
+local MIN_W, MIN_H = 380, 260
+
+local Palette = {
+    Bg          = Color3.fromRGB(22, 22, 26),
+    Panel       = Color3.fromRGB(28, 28, 34),
+    Panel2      = Color3.fromRGB(36, 36, 43),
+    Panel3      = Color3.fromRGB(46, 46, 55),
+    Panel4      = Color3.fromRGB(56, 56, 66),
+    Stroke      = Color3.fromRGB(60, 60, 70),
+    StrokeSoft  = Color3.fromRGB(42, 42, 50),
+    Text        = Color3.fromRGB(240, 240, 246),
+    TextDim     = Color3.fromRGB(158, 158, 172),
+    TextFaint   = Color3.fromRGB(108, 108, 122),
+    Accent      = Color3.fromRGB(122, 142, 255),
+    AccentDim   = Color3.fromRGB(88, 105, 200),
+    AccentSoft  = Color3.fromRGB(48, 58, 110),
+    Good        = Color3.fromRGB(92, 200, 140),
+    Warn        = Color3.fromRGB(228, 178, 86),
+    Bad         = Color3.fromRGB(230, 92, 100),
+    Shadow      = Color3.fromRGB(0, 0, 0),
+}
 
 local function reg()
-    if getgenv then
-        local g = getgenv()
-        g[LIVE_REGISTRY_KEY] = g[LIVE_REGISTRY_KEY] or {}
-        return g[LIVE_REGISTRY_KEY]
-    end
-    _G[LIVE_REGISTRY_KEY] = _G[LIVE_REGISTRY_KEY] or {}
-    return _G[LIVE_REGISTRY_KEY]
+    local holder = getgenv and getgenv() or _G
+    holder[REGISTRY_KEY] = holder[REGISTRY_KEY] or {}
+    return holder[REGISTRY_KEY]
 end
 
 local function nukeAll()
@@ -52,10 +50,10 @@ local function nukeAll()
 
     for _, root in ipairs(roots) do
         if root then
-            for _, child in ipairs(root:GetDescendants()) do
-                if child:IsA("ScreenGui") and child.Name:sub(1, #PREFIX) == PREFIX then
-                    pcall(function() child.Enabled = false end)
-                    pcall(function() child:Destroy() end)
+            for _, d in ipairs(root:GetDescendants()) do
+                if d:IsA("ScreenGui") and d.Name:sub(1, #PREFIX) == PREFIX then
+                    pcall(function() d.Enabled = false end)
+                    pcall(function() d:Destroy() end)
                 end
             end
         end
@@ -71,14 +69,11 @@ local function nukeAll()
     end
 
     for _, holder in ipairs({ _G, getgenv and getgenv() or nil, shared }) do
-        if holder then
-            if holder.Rot then
-                pcall(function()
-                    if type(holder.Rot.Destroy) == "function" then holder.Rot:Destroy() end
-                end)
-                holder.Rot = nil
-            end
-            if holder[LIVE_REGISTRY_KEY] then holder[LIVE_REGISTRY_KEY] = nil end
+        if holder and holder.Rot then
+            pcall(function()
+                if type(holder.Rot.Destroy) == "function" then holder.Rot:Destroy() end
+            end)
+            holder.Rot = nil
         end
     end
 end
@@ -141,7 +136,13 @@ local function trackConn(bag, conn)
 end
 
 local function disconnectAll(bag)
-    for _, c in ipairs(bag) do pcall(function() c:Disconnect() end) end
+    for _, c in ipairs(bag) do
+        if typeof(c) == "RBXScriptConnection" then
+            pcall(function() c:Disconnect() end)
+        elseif type(c) == "table" and type(c.Disconnect) == "function" then
+            pcall(c.Disconnect)
+        end
+    end
     for i = #bag, 1, -1 do bag[i] = nil end
 end
 
@@ -183,13 +184,14 @@ local function makeDraggable(frame, handle, onRelease)
     return function() disconnectAll(bag) end
 end
 
-local function makeResizable(win, shadow, grip, minW, minH)
+local function makeResizable(win, shadow, grip, minW, minH, isFrozen)
     local dragging, startPos, startSize = false, nil, nil
     local bag = {}
 
     trackConn(bag, grip.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
+            if isFrozen and isFrozen() then return end
             dragging = true
             startPos = input.Position
             startSize = win.AbsoluteSize
@@ -216,7 +218,7 @@ local function makeResizable(win, shadow, grip, minW, minH)
     return function() disconnectAll(bag) end
 end
 
-local function windowButton(parent, glyph, hoverColor, danger)
+local function ctrlButton(parent, glyph, hoverColor)
     local btn = new("TextButton", {
         Name = "Ctrl_" .. glyph,
         BackgroundColor3 = Palette.Panel2,
@@ -246,15 +248,327 @@ local function windowButton(parent, glyph, hoverColor, danger)
     return btn
 end
 
+local function openLink(url)
+    if type(url) ~= "string" or url == "" then return end
+    if setclipboard and not request then
+        pcall(setclipboard, url)
+    end
+    local ok = pcall(function()
+        if syn and syn.request then
+            syn.request({ Url = url, Method = "GET" })
+        elseif http_request then
+            http_request({ Url = url, Method = "GET" })
+        elseif request then
+            request({ Url = url, Method = "GET" })
+        end
+    end)
+    if not ok and setclipboard then
+        pcall(setclipboard, url)
+    end
+end
+
+local KeySystem = {}
+
+function KeySystem.Build(cfg, parent)
+    local box = new("Frame", {
+        Name = "KeySystem",
+        BackgroundColor3 = Palette.Bg,
+        BorderSizePixel = 0,
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = 50,
+        Parent = parent,
+    })
+
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 24, 0, 40),
+        Size = UDim2.new(1, -48, 0, 26),
+        Font = Enum.Font.GothamBold,
+        Text = cfg.Title or "Key Required",
+        TextColor3 = Palette.Text,
+        TextSize = 18,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 51,
+        Parent = box,
+    })
+
+    new("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 24, 0, 68),
+        Size = UDim2.new(1, -48, 0, 18),
+        Font = Enum.Font.Gotham,
+        Text = cfg.Description or "Enter your key to continue.",
+        TextColor3 = Palette.TextDim,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 51,
+        Parent = box,
+    })
+
+    local field = new("Frame", {
+        BackgroundColor3 = Palette.Panel,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 24, 0, 106),
+        Size = UDim2.new(1, -48, 0, 36),
+        ZIndex = 51,
+        Parent = box,
+    })
+    corner(field, 6)
+    stroke(field, Palette.Stroke, 1, 0.2)
+
+    local input = new("TextBox", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 12, 0, 0),
+        Size = UDim2.new(1, -24, 1, 0),
+        Font = Enum.Font.Gotham,
+        Text = "",
+        PlaceholderText = cfg.Placeholder or "paste key here",
+        PlaceholderColor3 = Palette.TextFaint,
+        TextColor3 = Palette.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ClearTextOnFocus = false,
+        ZIndex = 52,
+        Parent = field,
+    })
+
+    local status = new("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 24, 0, 148),
+        Size = UDim2.new(1, -48, 0, 16),
+        Font = Enum.Font.Gotham,
+        Text = "",
+        TextColor3 = Palette.TextFaint,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 51,
+        Parent = box,
+    })
+
+    local submit = new("TextButton", {
+        BackgroundColor3 = Palette.Accent,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 24, 0, 174),
+        Size = UDim2.new(1, -48, 0, 34),
+        Font = Enum.Font.GothamBold,
+        Text = cfg.SubmitText or "Verify",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 13,
+        AutoButtonColor = false,
+        ZIndex = 51,
+        Parent = box,
+    })
+    corner(submit, 6)
+
+    local onSuccess = cfg.OnSuccess or function() end
+
+    local validating = false
+    submit.MouseButton1Click:Connect(function()
+        if validating then return end
+        validating = true
+        local entered = input.Text
+        status.Text = cfg.LoadingText or "checking..."
+        status.TextColor3 = Palette.TextDim
+        submit.Text = "..."
+
+        task.spawn(function()
+            local ok, result = false, "invalid"
+            local validator = cfg.Validator
+            if type(validator) == "function" then
+                local a, b = pcall(validator, entered)
+                ok = a and b == true
+                if not ok and type(b) == "string" then result = b end
+            elseif type(cfg.Keys) == "table" then
+                for _, k in ipairs(cfg.Keys) do
+                    if tostring(k) == entered then ok = true break end
+                end
+            elseif type(cfg.URL) == "string" and cfg.URL ~= "" then
+                local httpReq = syn and syn.request or http_request or request
+                if httpReq then
+                    local a, resp = pcall(httpReq, {
+                        Url = cfg.URL .. "?key=" .. HttpService:UrlEncode(entered),
+                        Method = "GET",
+                    })
+                    ok = a and resp and resp.StatusCode == 200
+                end
+            end
+
+            task.wait(0.35)
+            validating = false
+            submit.Text = cfg.SubmitText or "Verify"
+
+            if ok then
+                status.Text = cfg.SuccessText or "verified."
+                status.TextColor3 = Palette.Good
+                task.wait(0.5)
+                onSuccess()
+            else
+                status.Text = cfg.FailText or "invalid key."
+                status.TextColor3 = Palette.Bad
+                input.Text = ""
+            end
+        end)
+    end)
+
+    local clear = new("TextButton", {
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -12, 0, 6),
+        Size = UDim2.fromOffset(24, 24),
+        Text = "✕",
+        Font = Enum.Font.GothamBold,
+        TextColor3 = Palette.TextFaint,
+        TextSize = 11,
+        AutoButtonColor = false,
+        ZIndex = 52,
+        Parent = field,
+    })
+    clear.MouseButton1Click:Connect(function()
+        input.Text = ""
+        status.Text = ""
+    end)
+
+    local y = 218
+    if cfg.Discord and cfg.Discord.URL and cfg.Discord.URL ~= "" then
+        local d = new("TextButton", {
+            BackgroundColor3 = Palette.Panel,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 24, 0, y),
+            Size = UDim2.new(1, -48, 0, 30),
+            Font = Enum.Font.GothamMedium,
+            Text = cfg.Discord.Label or "join our discord",
+            TextColor3 = Palette.Text,
+            TextSize = 12,
+            AutoButtonColor = false,
+            ZIndex = 51,
+            Parent = box,
+        })
+        corner(d, 6)
+        stroke(d, Palette.StrokeSoft, 1, 0.2)
+        d.MouseEnter:Connect(function() tween(d, 0.1, { BackgroundColor3 = Palette.Panel2 }) end)
+        d.MouseLeave:Connect(function() tween(d, 0.1, { BackgroundColor3 = Palette.Panel }) end)
+        d.MouseButton1Click:Connect(function() openLink(cfg.Discord.URL) end)
+        y = y + 38
+    end
+
+    return {
+        Frame = box,
+        Input = input,
+        Show = function() box.Visible = true end,
+        Hide = function() box.Visible = false end,
+    }
+end
+
+local Notify = {}
+
+function Notify.Build(parent)
+    local container = new("Frame", {
+        Name = "Notifications",
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -16, 1, -16),
+        Size = UDim2.fromOffset(240, 400),
+        ZIndex = 100,
+        Parent = parent,
+    })
+
+    local list = new("Frame", {
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.new(0, 0, 1, 0),
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        ZIndex = 100,
+        Parent = container,
+    })
+    new("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 6),
+        Parent = list,
+    })
+
+    return function(title, body, kind)
+        local card = new("Frame", {
+            BackgroundColor3 = Palette.Panel,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, 54),
+            BackgroundTransparency = 1,
+            ZIndex = 100,
+            Parent = list,
+        })
+        corner(card, 6)
+        stroke(card, Palette.StrokeSoft, 1, 0.3)
+
+        local bar = new("Frame", {
+            BackgroundColor3 = kind == "success" and Palette.Good
+                or kind == "error" and Palette.Bad
+                or Palette.Accent,
+            BorderSizePixel = 0,
+            Size = UDim2.new(0, 3, 1, 0),
+            ZIndex = 101,
+            Parent = card,
+        })
+        corner(bar, 2)
+
+        new("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 12, 0, 8),
+            Size = UDim2.new(1, -20, 0, 16),
+            Font = Enum.Font.GothamBold,
+            Text = title or "",
+            TextColor3 = Palette.Text,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 101,
+            Parent = card,
+        })
+        new("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 12, 0, 26),
+            Size = UDim2.new(1, -20, 0, 22),
+            Font = Enum.Font.Gotham,
+            Text = body or "",
+            TextColor3 = Palette.TextDim,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = true,
+            ZIndex = 101,
+            Parent = card,
+        })
+
+        tween(card, 0.2, { BackgroundTransparency = 0 })
+
+        task.delay(3.5, function()
+            tween(card, 0.2, { BackgroundTransparency = 1 })
+            task.wait(0.22)
+            pcall(function() card:Destroy() end)
+        end)
+    end
+end
+
 function Rot:CreateWindow(cfg)
     cfg = cfg or {}
     local title    = cfg.Title or "Rot"
     local subtitle = cfg.Subtitle or ""
-    local baseW    = (cfg.Width  or 460)
-    local baseH    = (cfg.Height or 300)
-    local toggleKey = cfg.ToggleKey or Enum.KeyCode.RightShift
+    local baseW    = cfg.Width  or 480
+    local baseH    = cfg.Height or 320
+    local toggleKey = cfg.ToggleKey
+    if toggleKey == nil then toggleKey = Enum.KeyCode.RightShift end
+    if toggleKey == false then toggleKey = nil end
     local parent    = cfg.Parent or getParent()
-    local showBubble = cfg.Bubble ~= false
+
+    local opt = cfg.Options or {}
+    local optKeySystem  = opt.KeySystem or false
+    local optDiscord    = opt.Discord or nil
+    local optSearch     = opt.Search ~= false
+    local optRGB        = opt.RGBAccent ~= false
+    local optBubble     = opt.Bubble ~= false
+    local optNotify     = opt.Notifications ~= false
+    local optIntro      = opt.IntroAnimation ~= false
+    local staticAccent  = opt.AccentColor or Palette.Accent
 
     local w = math.floor(baseW * UISCALE)
     local h = math.floor(baseH * UISCALE)
@@ -267,6 +581,7 @@ function Rot:CreateWindow(cfg)
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
         IgnoreGuiInset = true,
         DisplayOrder = 9999,
+        Enabled = false,
         Parent = parent,
     })
 
@@ -279,6 +594,7 @@ function Rot:CreateWindow(cfg)
         BorderSizePixel = 0,
         Position = UDim2.new(0.5, -w / 2 + 5, 0.5, -h / 2 + 5),
         Size = size,
+        Visible = false,
         ZIndex = 1,
         Parent = gui,
     })
@@ -298,20 +614,36 @@ function Rot:CreateWindow(cfg)
     corner(win, 9)
     stroke(win, Palette.Stroke, 1, 0.15)
 
+    local keyScreenHolder
+    if optKeySystem then
+        local KSCfg = type(optKeySystem) == "table" and optKeySystem or {}
+        KSCfg.Discord = KSCfg.Discord or optDiscord
+        keyScreenHolder = new("Frame", {
+            Name = "KeyGate",
+            BackgroundColor3 = Palette.Bg,
+            BorderSizePixel = 0,
+            Size = UDim2.fromScale(1, 1),
+            ZIndex = 50,
+            Visible = true,
+            Parent = win,
+        })
+        corner(keyScreenHolder, 9)
+    end
+
     local titleBar = new("Frame", {
         Name = "TitleBar",
         BackgroundColor3 = Palette.Panel,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 32),
+        Size = UDim2.new(1, 0, 0, 34),
         ZIndex = 3,
         Parent = win,
     })
 
     local logoDot = new("Frame", {
         Name = "LogoDot",
-        BackgroundColor3 = Palette.Accent,
+        BackgroundColor3 = staticAccent,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 10, 0.5, -4),
+        Position = UDim2.new(0, 12, 0.5, -4),
         Size = UDim2.fromOffset(8, 8),
         ZIndex = 4,
         Parent = titleBar,
@@ -321,7 +653,7 @@ function Rot:CreateWindow(cfg)
     new("TextLabel", {
         Name = "Title",
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 24, 0, 0),
+        Position = UDim2.new(0, 26, 0, 0),
         Size = UDim2.new(0.5, 0, 1, 0),
         Font = Enum.Font.GothamBold,
         Text = title,
@@ -336,8 +668,8 @@ function Rot:CreateWindow(cfg)
         new("TextLabel", {
             Name = "Subtitle",
             BackgroundTransparency = 1,
-            Position = UDim2.new(0.5, 0, 0, 0),
-            Size = UDim2.new(0.4, -60, 1, 0),
+            Position = UDim2.new(0.4, 0, 0, 0),
+            Size = UDim2.new(0.4, 0, 1, 0),
             Font = Enum.Font.Gotham,
             Text = subtitle,
             TextColor3 = Palette.TextFaint,
@@ -367,16 +699,16 @@ function Rot:CreateWindow(cfg)
         Parent = btnRail,
     })
 
-    local minBtn   = windowButton(btnRail, "—", Palette.Panel3)
-    local maxBtn   = windowButton(btnRail, "□", Palette.Panel3)
-    local closeBtn = windowButton(btnRail, "✕", Palette.Bad)
+    local minBtn   = ctrlButton(btnRail, "—", Palette.Panel3)
+    local maxBtn   = ctrlButton(btnRail, "□", Palette.Panel3)
+    local closeBtn = ctrlButton(btnRail, "✕", Palette.Bad)
 
     local accentLine = new("Frame", {
         Name = "AccentLine",
-        BackgroundColor3 = Palette.Accent,
+        BackgroundColor3 = staticAccent,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 1, -1),
-        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 1, -2),
+        Size = UDim2.new(1, 0, 0, 2),
         ZIndex = 4,
         Parent = titleBar,
     })
@@ -384,8 +716,8 @@ function Rot:CreateWindow(cfg)
     local body = new("Frame", {
         Name = "Body",
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 32),
-        Size = UDim2.new(1, 0, 1, -32),
+        Position = UDim2.new(0, 0, 0, 34),
+        Size = UDim2.new(1, 0, 1, -34),
         ZIndex = 3,
         Parent = win,
     })
@@ -394,24 +726,72 @@ function Rot:CreateWindow(cfg)
         Name = "SideBar",
         BackgroundColor3 = Palette.Panel,
         BorderSizePixel = 0,
-        Size = UDim2.new(0, 120, 1, 0),
+        Size = UDim2.new(0, 132, 1, 0),
         ZIndex = 4,
         Parent = body,
     })
     pad(sideBar, 8, 6, 8, 6)
 
+    local searchHolder
+    local searchBox
+    if optSearch then
+        searchHolder = new("Frame", {
+            Name = "Search",
+            BackgroundColor3 = Palette.Panel2,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 0, 0),
+            Size = UDim2.new(1, 0, 0, 26),
+            ZIndex = 5,
+            Parent = sideBar,
+        })
+        corner(searchHolder, 6)
+
+        new("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 6, 0, 0),
+            Size = UDim2.fromOffset(16, 26),
+            Font = Enum.Font.GothamBold,
+            Text = "⌕",
+            TextColor3 = Palette.TextFaint,
+            TextSize = 14,
+            ZIndex = 6,
+            Parent = searchHolder,
+        })
+
+        searchBox = new("TextBox", {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 24, 0, 0),
+            Size = UDim2.new(1, -30, 1, 0),
+            Font = Enum.Font.Gotham,
+            Text = "",
+            PlaceholderText = "search...",
+            PlaceholderColor3 = Palette.TextFaint,
+            TextColor3 = Palette.Text,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ClearTextOnFocus = false,
+            ZIndex = 6,
+            Parent = searchHolder,
+        })
+    end
+
     local tabList = new("Frame", {
         Name = "TabList",
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
+        Position = UDim2.new(0, 0, 0, optSearch and 32 or 0),
+        Size = UDim2.new(1, 0, 1, optSearch and -32 or 0),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = Palette.Panel3,
+        BorderSizePixel = 0,
         ZIndex = 5,
         Parent = sideBar,
     })
     new("UIListLayout", {
         FillDirection = Enum.FillDirection.Vertical,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 4),
+        Padding = UDim.new(0, 3),
         Parent = tabList,
     })
 
@@ -419,7 +799,7 @@ function Rot:CreateWindow(cfg)
         Name = "Divider",
         BackgroundColor3 = Palette.StrokeSoft,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 120, 0, 0),
+        Position = UDim2.new(0, 132, 0, 0),
         Size = UDim2.new(0, 1, 1, 0),
         ZIndex = 4,
         Parent = body,
@@ -429,8 +809,8 @@ function Rot:CreateWindow(cfg)
         Name = "Content",
         BackgroundColor3 = Palette.Bg,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 121, 0, 0),
-        Size = UDim2.new(1, -121, 1, 0),
+        Position = UDim2.new(0, 133, 0, 0),
+        Size = UDim2.new(1, -133, 1, 0),
         ZIndex = 3,
         Parent = body,
     })
@@ -449,7 +829,7 @@ function Rot:CreateWindow(cfg)
         Parent = content,
     })
 
-    new("UIListLayout", {
+    local contentList = new("UIListLayout", {
         FillDirection = Enum.FillDirection.Vertical,
         HorizontalAlignment = Enum.HorizontalAlignment.Left,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -482,37 +862,97 @@ function Rot:CreateWindow(cfg)
     end
 
     local state = {
+        Phase       = "Closed",
         Minimized   = false,
         Fullscreen  = false,
-        Visible     = false,
         UserSize    = size,
         UserPos     = win.Position,
         RestoreSize = size,
         RestorePos  = win.Position,
+        Accent      = staticAccent,
     }
 
-    local function applySize(sz, pos)
+    local notify = optNotify and Notify.Build(gui) or function() end
+
+    local api = {}
+    api.Gui     = gui
+    api.Window  = win
+    api.Body    = body
+    api.Content = scroll
+    api.Palette = Palette
+    api.State   = state
+    api.Notify  = notify
+    api.Tabs    = {}
+
+    local Tabs = api.Tabs
+
+    local function setVisible(v)
+        if v == true and (state.Phase == "Open" or state.Phase == "Opening") then return end
+        if v == false and (state.Phase == "Closed" or state.Phase == "Closing") then return end
+
+        if v then
+            state.Phase = "Opening"
+            gui.Enabled = true
+            win.Visible = true
+            shadow.Visible = true
+            win.Size = UDim2.fromOffset(state.UserSize.X.Offset, 0)
+            shadow.Size = UDim2.fromOffset(state.UserSize.X.Offset, 0)
+            if optIntro then
+                tween(win, 0.2, { Size = state.UserSize }, Enum.EasingStyle.Quart)
+                tween(shadow, 0.2, { Size = state.UserSize }, Enum.EasingStyle.Quart)
+                task.delay(0.22, function()
+                    if state.Phase == "Opening" then state.Phase = "Open" end
+                end)
+            else
+                win.Size = state.UserSize
+                shadow.Size = state.UserSize
+                state.Phase = "Open"
+            end
+        else
+            state.Phase = "Closing"
+            tween(win, 0.16, { Size = UDim2.fromOffset(state.UserSize.X.Offset, 0) })
+            tween(shadow, 0.16, { Size = UDim2.fromOffset(state.UserSize.X.Offset, 0) })
+            task.delay(0.18, function()
+                if state.Phase ~= "Closing" then return end
+                win.Visible = false
+                shadow.Visible = false
+                gui.Enabled = false
+                state.Phase = "Closed"
+            end)
+        end
+    end
+
+    api.Open    = function() setVisible(true) end
+    api.Close   = function() setVisible(false) end
+    api.Toggle  = function() setVisible(not (state.Phase == "Open" or state.Phase == "Opening")) end
+
+    api.Destroy = function()
+        disconnectAll(connBag)
+        if rgbThread then pcall(function() task.cancel(rgbThread) end) end
+        pcall(function() gui.Enabled = false end)
+        pcall(function() gui:Destroy() end)
+    end
+
+    api.SetSize = function(nw, nh)
+        local sz = UDim2.fromOffset(math.max(MIN_W, nw), math.max(MIN_H, nh))
+        state.UserSize = sz
         win.Size = sz
         shadow.Size = sz
-        if pos then
-            win.Position = pos
-            shadow.Position = UDim2.new(pos.X.Scale, pos.X.Offset + 5, pos.Y.Scale, pos.Y.Offset + 5)
-        end
-        state.UserSize = sz
-        state.UserPos = win.Position
     end
 
     trackConn(connBag, minBtn.MouseButton1Click:Connect(function()
+        if state.Phase ~= "Open" then return end
         state.Minimized = not state.Minimized
         body.Visible = not state.Minimized
         local target = state.Minimized
-            and UDim2.fromOffset(win.AbsoluteSize.X, 32)
+            and UDim2.fromOffset(win.AbsoluteSize.X, 34)
             or state.UserSize
         tween(win, 0.16, { Size = target })
         tween(shadow, 0.16, { Size = target })
     end))
 
     trackConn(connBag, maxBtn.MouseButton1Click:Connect(function()
+        if state.Phase ~= "Open" then return end
         state.Fullscreen = not state.Fullscreen
         if state.Fullscreen then
             state.RestoreSize = win.Size
@@ -543,56 +983,56 @@ function Rot:CreateWindow(cfg)
         end
     end))
 
-    local function setVisible(v)
-        if state.Visible == v then return end
-        state.Visible = v
-        if v then
-            win.Visible = true
-            win.Size = UDim2.fromOffset(win.AbsoluteSize.X, 0)
-            tween(win, 0.18, { Size = state.UserSize })
-            tween(shadow, 0.18, { Size = state.UserSize })
-        else
-            tween(win, 0.14, { Size = UDim2.fromOffset(win.AbsoluteSize.X, 0) })
-            tween(shadow, 0.14, { Size = UDim2.fromOffset(win.AbsoluteSize.X, 0) })
-            task.delay(0.15, function()
-                if gui and gui.Parent and not state.Visible then
-                    win.Visible = false
-                end
-            end)
-        end
-    end
-
     trackConn(connBag, closeBtn.MouseButton1Click:Connect(function()
         setVisible(false)
     end))
 
     local stopDrag = makeDraggable(win, titleBar)
-    local stopResize = makeResizable(win, shadow, grip, MIN_W, MIN_H)
+    local stopResize = makeResizable(win, shadow, grip, MIN_W, MIN_H, function()
+        return state.Phase ~= "Open" or state.Minimized
+    end)
+    table.insert(connBag, { Disconnect = stopDrag })
+    table.insert(connBag, { Disconnect = stopResize })
 
     trackConn(connBag, win:GetPropertyChangedSignal("Size"):Connect(function()
-        if not state.Fullscreen and not state.Minimized then
+        if state.Phase == "Open" and not state.Fullscreen and not state.Minimized then
             state.UserSize = win.Size
         end
     end))
     trackConn(connBag, win:GetPropertyChangedSignal("Position"):Connect(function()
-        if not state.Fullscreen then
+        if state.Phase == "Open" and not state.Fullscreen then
             state.UserPos = win.Position
         end
     end))
 
-    if toggleKey and not IS_MOBILE then
+    local rgbThread
+    if optRGB then
+        rgbThread = task.spawn(function()
+            local hue = 0
+            while gui and gui.Parent do
+                hue = (hue + 0.0035) % 1
+                local c = Color3.fromHSV(hue, 0.65, 0.95)
+                if accentLine and accentLine.Parent then accentLine.BackgroundColor3 = c end
+                if logoDot and logoDot.Parent then logoDot.BackgroundColor3 = c end
+                state.Accent = c
+                RunService.Heartbeat:Wait()
+            end
+        end)
+    end
+
+    if toggleKey then
         trackConn(connBag, UserInputService.InputBegan:Connect(function(input, gpe)
             if gpe then return end
-            if input.KeyCode == toggleKey then setVisible(not state.Visible) end
+            if input.KeyCode == toggleKey then api.Toggle() end
         end))
     end
 
     local bubble, bubbleShadow
-    if showBubble then
+    if optBubble then
         local bubbleSize = IS_MOBILE and 46 or 40
         bubble = new("TextButton", {
             Name = "ToggleBubble",
-            BackgroundColor3 = Palette.Accent,
+            BackgroundColor3 = staticAccent,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(bubbleSize, bubbleSize),
             Position = UDim2.new(0, 18, 0.5, -bubbleSize / 2),
@@ -601,6 +1041,7 @@ function Rot:CreateWindow(cfg)
             TextColor3 = Color3.fromRGB(255, 255, 255),
             TextSize = IS_MOBILE and 18 or 15,
             AutoButtonColor = false,
+            Visible = false,
             ZIndex = 10,
             Parent = gui,
         })
@@ -614,62 +1055,137 @@ function Rot:CreateWindow(cfg)
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(bubbleSize, bubbleSize),
             Position = bubble.Position + UDim2.fromOffset(3, 3),
+            Visible = false,
             ZIndex = 9,
             Parent = gui,
         })
         corner(bubbleShadow, bubbleSize / 2)
 
-        trackConn(connBag, bubble.MouseEnter:Connect(function()
-            tween(bubble, 0.1, { BackgroundColor3 = Palette.AccentDim })
-        end))
-        trackConn(connBag, bubble.MouseLeave:Connect(function()
-            tween(bubble, 0.1, { BackgroundColor3 = Palette.Accent })
-        end))
-
         local stopBubbleDrag = makeDraggable(bubble, bubble, function(moved)
-            if not moved then setVisible(not state.Visible) end
+            if not moved then api.Toggle() end
         end)
+        table.insert(connBag, { Disconnect = stopBubbleDrag })
 
         trackConn(connBag, bubble:GetPropertyChangedSignal("Position"):Connect(function()
-            bubbleShadow.Position = bubble.Position + UDim2.fromOffset(3, 3)
+            if bubbleShadow then
+                bubbleShadow.Position = bubble.Position + UDim2.fromOffset(3, 3)
+            end
         end))
 
-        table.insert(connBag, { Disconnect = stopBubbleDrag })
+        api.Bubble = bubble
+        api.ShowBubble = function()
+            if bubble then bubble.Visible = true end
+            if bubbleShadow then bubbleShadow.Visible = true end
+        end
+        api.HideBubble = function()
+            if bubble then bubble.Visible = false end
+            if bubbleShadow then bubbleShadow.Visible = false end
+        end
     end
 
-    table.insert(connBag, { Disconnect = stopDrag })
-    table.insert(connBag, { Disconnect = stopResize })
-
-    local tabs, currentTab = {}, nil
-
-    local api = {}
-    api.Gui     = gui
-    api.Window  = win
-    api.Body    = body
-    api.Content = scroll
-    api.Palette = Palette
-    api.State   = state
-    api.Bubble  = bubble
-    api.Tabs    = tabs
-
-    api.Close   = function() setVisible(false) end
-    api.Open    = function() setVisible(true) end
-    api.Toggle  = function() setVisible(not state.Visible) end
-    api.Destroy = function()
-        disconnectAll(connBag)
-        pcall(function() gui.Enabled = false end)
-        pcall(function() gui:Destroy() end)
+    if keyScreenHolder then
+        local KSCfg = type(optKeySystem) == "table" and optKeySystem or {}
+        local ks = KeySystem.Build(KSCfg, keyScreenHolder)
+        keyScreenHolder.Visible = false
+        task.spawn(function()
+            gui.Enabled = true
+            win.Visible = true
+            shadow.Visible = true
+            win.Size = state.UserSize
+            shadow.Size = state.UserSize
+            keyScreenHolder.Visible = true
+            ks.Show()
+            state.Phase = "KeyGate"
+        end)
+        KSCfg.OnSuccess = function()
+            ks.Hide()
+            keyScreenHolder.Visible = false
+            state.Phase = "Closed"
+            api.Open()
+        end
     end
 
-    api.SetSize = function(nw, nh)
-        local sz = UDim2.fromOffset(math.max(MIN_W, nw), math.max(MIN_H, nh))
-        state.UserSize = sz
-        applySize(sz, win.Position)
+    if optDiscord and optDiscord.URL and optDiscord.URL ~= "" then
+        local d = new("TextButton", {
+            Name = "DiscordButton",
+            BackgroundColor3 = Palette.Panel2,
+            BackgroundTransparency = 0,
+            BorderSizePixel = 0,
+            AnchorPoint = Vector2.new(0, 1),
+            Position = UDim2.new(0, 8, 1, -8),
+            Size = UDim2.new(1, -16, 0, 26),
+            Font = Enum.Font.GothamMedium,
+            Text = optDiscord.Label or "discord",
+            TextColor3 = Palette.TextDim,
+            TextSize = 11,
+            AutoButtonColor = false,
+            ZIndex = 6,
+            Parent = sideBar,
+        })
+        corner(d, 6)
+        d.MouseEnter:Connect(function()
+            tween(d, 0.1, { BackgroundColor3 = Palette.Panel3, TextColor3 = Palette.Text })
+        end)
+        d.MouseLeave:Connect(function()
+            tween(d, 0.1, { BackgroundColor3 = Palette.Panel2, TextColor3 = Palette.TextDim })
+        end)
+        d.MouseButton1Click:Connect(function() openLink(optDiscord.URL) end)
+    end
+
+    local function makeSearchIndex()
+        local index = {}
+        for _, t in ipairs(Tabs) do
+            table.insert(index, {
+                kind = "tab",
+                name = t.Name,
+                tab = t,
+                label = t.Name,
+            })
+            for _, c in ipairs(t.Components) do
+                table.insert(index, {
+                    kind = c.kind,
+                    name = c.label,
+                    tab = t,
+                    component = c,
+                    label = c.label,
+                })
+            end
+        end
+        return index
+    end
+
+    local searchActive = false
+    local function runSearch(q)
+        if not optSearch or not searchBox then return end
+        q = tostring(q or ""):lower()
+        for _, t in ipairs(Tabs) do
+            local match = (q == "") or (t.Name:lower():find(q, 1, true) ~= nil)
+            if not match then
+                for _, c in ipairs(t.Components) do
+                    if c.label and c.label:lower():find(q, 1, true) then
+                        match = true
+                        break
+                    end
+                end
+            end
+            t.Button.Visible = match
+        end
+    end
+
+    if optSearch and searchBox then
+        local debounceThread
+        searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            if debounceThread then pcall(function() task.cancel(debounceThread) end) end
+            local text = searchBox.Text
+            debounceThread = task.delay(0.12, function()
+                runSearch(text)
+            end)
+        end)
     end
 
     api.SelectTab = function(name)
-        for _, t in ipairs(tabs) do
-            if t.Button.Text == name then t:Select() return end
+        for _, t in ipairs(Tabs) do
+            if t.Name == name then t:Select() return end
         end
     end
 
@@ -692,11 +1208,11 @@ function Rot:CreateWindow(cfg)
             Parent = tabList,
         })
         corner(btn, 6)
-        local btnStroke = stroke(btn, Palette.StrokeSoft, 1, 1)
+        stroke(btn, Palette.StrokeSoft, 1, 1)
 
-        local btnAccent = new("Frame", {
+        local accentBar = new("Frame", {
             Name = "AccentBar",
-            BackgroundColor3 = Palette.Accent,
+            BackgroundColor3 = staticAccent,
             BorderSizePixel = 0,
             Position = UDim2.new(0, 0, 0.5, -8),
             Size = UDim2.fromOffset(2, 16),
@@ -704,7 +1220,7 @@ function Rot:CreateWindow(cfg)
             Visible = false,
             Parent = btn,
         })
-        corner(btnAccent, 1)
+        corner(accentBar, 1)
 
         local page = new("Frame", {
             Name = "Page_" .. name,
@@ -722,24 +1238,26 @@ function Rot:CreateWindow(cfg)
             Parent = page,
         })
 
-        local tabApi = {}
-        tabApi.Page = page
-        tabApi.Button = btn
+        local tabApi = {
+            Name = name,
+            Page = page,
+            Button = btn,
+            Components = {},
+        }
 
         function tabApi:Select()
-            for _, t in ipairs(tabs) do
+            for _, t in ipairs(Tabs) do
                 t.Button.BackgroundColor3 = Palette.Panel2
                 t.Button.BackgroundTransparency = 1
                 t.Button.TextColor3 = Palette.TextDim
-                t.Button.AccentBar.Visible = false
+                if t.AccentBar then t.AccentBar.Visible = false end
                 t.Page.Visible = false
             end
             btn.BackgroundTransparency = 0
             btn.BackgroundColor3 = Palette.Panel2
             btn.TextColor3 = Palette.Text
-            btnAccent.Visible = true
+            accentBar.Visible = true
             page.Visible = true
-            currentTab = tabApi
         end
 
         function tabApi:AddSection(text)
@@ -750,8 +1268,7 @@ function Rot:CreateWindow(cfg)
                 ZIndex = 5,
                 Parent = page,
             })
-            local lbl = new("TextLabel", {
-                Name = "SectionLabel",
+            new("TextLabel", {
                 BackgroundTransparency = 1,
                 Position = UDim2.new(0, 2, 0, 0),
                 Size = UDim2.new(1, -4, 0, 18),
@@ -764,7 +1281,6 @@ function Rot:CreateWindow(cfg)
                 Parent = section,
             })
             new("Frame", {
-                Name = "Rule",
                 BackgroundColor3 = Palette.StrokeSoft,
                 BorderSizePixel = 0,
                 Position = UDim2.new(0, 2, 1, -2),
@@ -777,7 +1293,6 @@ function Rot:CreateWindow(cfg)
 
         function tabApi:AddLabel(text)
             local lbl = new("TextLabel", {
-                Name = "Label",
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, 0, 0, 20),
                 Font = Enum.Font.Gotham,
@@ -789,6 +1304,7 @@ function Rot:CreateWindow(cfg)
                 ZIndex = 5,
                 Parent = page,
             })
+            table.insert(tabApi.Components, { kind = "label", label = text or "", instance = lbl })
             return lbl
         end
 
@@ -797,8 +1313,7 @@ function Rot:CreateWindow(cfg)
             local label = cfgB.Text or cfgB.Name or "Button"
             local cb = cfgB.Callback or function() end
 
-            local btn2 = new("TextButton", {
-                Name = "Button",
+            local b = new("TextButton", {
                 BackgroundColor3 = Palette.Panel2,
                 BorderSizePixel = 0,
                 Size = UDim2.new(1, 0, 0, 30),
@@ -810,23 +1325,24 @@ function Rot:CreateWindow(cfg)
                 ZIndex = 5,
                 Parent = page,
             })
-            corner(btn2, 6)
-            stroke(btn2, Palette.StrokeSoft, 1, 0.2)
+            corner(b, 6)
+            stroke(b, Palette.StrokeSoft, 1, 0.2)
 
-            btn2.MouseEnter:Connect(function()
-                tween(btn2, 0.1, { BackgroundColor3 = Palette.Panel3 })
+            b.MouseEnter:Connect(function()
+                tween(b, 0.1, { BackgroundColor3 = Palette.Panel3 })
             end)
-            btn2.MouseLeave:Connect(function()
-                tween(btn2, 0.1, { BackgroundColor3 = Palette.Panel2 })
+            b.MouseLeave:Connect(function()
+                tween(b, 0.1, { BackgroundColor3 = Palette.Panel2 })
             end)
-            btn2.MouseButton1Click:Connect(function()
-                tween(btn2, 0.06, { BackgroundColor3 = Palette.AccentSoft })
+            b.MouseButton1Click:Connect(function()
+                tween(b, 0.06, { BackgroundColor3 = Palette.AccentSoft })
                 task.delay(0.08, function()
-                    tween(btn2, 0.14, { BackgroundColor3 = Palette.Panel2 })
+                    tween(b, 0.14, { BackgroundColor3 = Palette.Panel2 })
                 end)
                 pcall(cb)
             end)
-            return btn2
+            table.insert(tabApi.Components, { kind = "button", label = label, instance = b })
+            return b
         end
 
         function tabApi:AddToggle(cfgT)
@@ -836,7 +1352,6 @@ function Rot:CreateWindow(cfg)
             local cb = cfgT.Callback or function() end
 
             local holder = new("Frame", {
-                Name = "Toggle",
                 BackgroundColor3 = Palette.Panel2,
                 BorderSizePixel = 0,
                 Size = UDim2.new(1, 0, 0, 30),
@@ -881,10 +1396,9 @@ function Rot:CreateWindow(cfg)
             corner(knob, 6)
 
             local toggled = default
-
             local function render()
                 if toggled then
-                    switch.BackgroundColor3 = Palette.Accent
+                    switch.BackgroundColor3 = state.Accent
                     knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
                     tween(knob, 0.14, { Position = UDim2.new(1, -14, 0.5, -6) })
                 else
@@ -895,22 +1409,23 @@ function Rot:CreateWindow(cfg)
             end
             render()
 
-            local tabApiToggle = {}
-            tabApiToggle.Set = function(v)
+            local handle = {}
+            handle.Set = function(v)
                 toggled = v and true or false
                 render()
                 pcall(cb, toggled)
             end
-            tabApiToggle.Get = function() return toggled end
+            handle.Get = function() return toggled end
 
             holder.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1
                 or input.UserInputType == Enum.UserInputType.Touch then
-                    tabApiToggle.Set(not toggled)
+                    handle.Set(not toggled)
                 end
             end)
 
-            return tabApiToggle
+            table.insert(tabApi.Components, { kind = "toggle", label = label, instance = holder, api = handle })
+            return handle
         end
 
         function tabApi:AddSlider(cfgS)
@@ -923,7 +1438,6 @@ function Rot:CreateWindow(cfg)
             local decimals = cfgS.Decimals or 0
 
             local holder = new("Frame", {
-                Name = "Slider",
                 BackgroundColor3 = Palette.Panel2,
                 BorderSizePixel = 0,
                 Size = UDim2.new(1, 0, 0, 44),
@@ -933,7 +1447,7 @@ function Rot:CreateWindow(cfg)
             corner(holder, 6)
             stroke(holder, Palette.StrokeSoft, 1, 0.2)
 
-            local lbl = new("TextLabel", {
+            new("TextLabel", {
                 BackgroundTransparency = 1,
                 Position = UDim2.new(0, 10, 0, 4),
                 Size = UDim2.new(1, -20, 0, 16),
@@ -983,6 +1497,7 @@ function Rot:CreateWindow(cfg)
             local function render()
                 local alpha = (maxV == minV) and 0 or ((value - minV) / (maxV - minV))
                 barFill.Size = UDim2.new(alpha, 0, 1, 0)
+                barFill.BackgroundColor3 = state.Accent
                 local txt
                 if decimals <= 0 then
                     txt = tostring(math.floor(value + 0.5))
@@ -1029,14 +1544,16 @@ function Rot:CreateWindow(cfg)
 
             render()
 
-            return {
-                Set = function(v)
-                    value = math.clamp(v, minV, maxV)
-                    render()
-                    pcall(cb, value)
-                end,
-                Get = function() return value end,
-            }
+            local handle = {}
+            handle.Set = function(v)
+                value = math.clamp(v, minV, maxV)
+                render()
+                pcall(cb, value)
+            end
+            handle.Get = function() return value end
+
+            table.insert(tabApi.Components, { kind = "slider", label = label, instance = holder, api = handle })
+            return handle
         end
 
         function tabApi:AddDropdown(cfgD)
@@ -1046,7 +1563,6 @@ function Rot:CreateWindow(cfg)
             local cb = cfgD.Callback or function() end
 
             local holder = new("Frame", {
-                Name = "Dropdown",
                 BackgroundColor3 = Palette.Panel2,
                 BorderSizePixel = 0,
                 Size = UDim2.new(1, 0, 0, 30),
@@ -1169,36 +1685,39 @@ function Rot:CreateWindow(cfg)
                 render()
             end)
 
-            return {
-                Set = function(v)
-                    selected = tostring(v)
-                    render()
-                    pcall(cb, selected)
-                end,
-                Get = function() return selected end,
-                SetOptions = function(newOpts)
-                    options = newOpts or {}
-                end,
-            }
+            local handle = {}
+            handle.Set = function(v)
+                selected = tostring(v)
+                render()
+                pcall(cb, selected)
+            end
+            handle.Get = function() return selected end
+            handle.SetOptions = function(newOpts)
+                options = newOpts or {}
+            end
+
+            table.insert(tabApi.Components, { kind = "dropdown", label = label, instance = holder, api = handle })
+            return handle
         end
 
         btn.MouseButton1Click:Connect(function() tabApi:Select() end)
 
-        table.insert(tabs, tabApi)
-        if not currentTab then tabApi:Select() end
+        table.insert(Tabs, tabApi)
+        if #Tabs == 1 then tabApi:Select() end
         return tabApi
     end
 
-    local entry = {
-        destroy = api.Destroy,
-        gui = gui,
-    }
+    local entry = { destroy = api.Destroy, gui = gui }
     table.insert(reg(), entry)
 
     Rot.Instance = api
     _G.Rot = Rot
     if getgenv then getgenv().Rot = Rot end
     if shared then shared.Rot = Rot end
+
+    if optBubble and api.ShowBubble then
+        task.defer(function() api.ShowBubble() end)
+    end
 
     return api, Rot
 end
