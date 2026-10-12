@@ -4,6 +4,7 @@ Rot.__index = Rot
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
 local TweenService      = game:GetService("TweenService")
+local RunService        = game:GetService("RunService")
 local CoreGui           = game:GetService("CoreGui")
 
 local LocalPlayer       = Players.LocalPlayer
@@ -22,7 +23,8 @@ local Theme = {
 }
 
 local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
-local SCALE     = IS_MOBILE and 0.85 or 1
+local SCALE     = IS_MOBILE and 0.7 or 0.85
+local MIN_W, MIN_H = 280, 200
 
 local function nukeRot()
     local roots = {}
@@ -105,6 +107,10 @@ local function tween(inst, time, props, style, dir)
     return t
 end
 
+local function hsl(h, s, l)
+    return Color3.fromHSV(h % 1, s, l)
+end
+
 local function makeDraggable(frame, handle, onRelease)
     handle = handle or frame
     local dragging, dragStart, startPos = false, nil, nil
@@ -140,17 +146,49 @@ local function makeDraggable(frame, handle, onRelease)
     end)
 end
 
+local function makeResizable(win, grip, shadow, minW, minH)
+    local dragging, startPos, startSize = false, nil, nil
+
+    grip.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            startPos = input.Position
+            startSize = win.AbsoluteSize
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    grip.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - startPos
+            local w = math.max(minW, math.floor(startSize.X + delta.X))
+            local h = math.max(minH, math.floor(startSize.Y + delta.Y))
+            win.Size = UDim2.fromOffset(w, h)
+            if shadow then
+                shadow.Size = UDim2.fromOffset(w, h)
+            end
+        end
+    end)
+end
+
 local function windowButton(parent, glyph, hoverColor)
     local btn = new("TextButton", {
         Name = "WinBtn_" .. glyph,
         BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Size = UDim2.fromOffset(36, 28),
+        Size = UDim2.fromOffset(30, 24),
         Font = Enum.Font.Gotham,
         Text = glyph,
         TextColor3 = Theme.TextDim,
-        TextSize = 14,
+        TextSize = 13,
         AutoButtonColor = false,
         Parent = parent,
     })
@@ -172,13 +210,14 @@ function Rot:CreateWindow(cfg)
     cfg = cfg or {}
     local title    = cfg.Title or "Rot"
     local subtitle = cfg.Subtitle or "UI Library"
-    local baseSize = cfg.Size or UDim2.fromOffset(600, 400)
+    local baseSize = cfg.Size or UDim2.fromOffset(420, 280)
     local size     = UDim2.fromOffset(
         math.floor(baseSize.X.Offset * SCALE),
         math.floor(baseSize.Y.Offset * SCALE)
     )
     local toggleKey = cfg.ToggleKey or Enum.KeyCode.RightShift
     local parent    = cfg.Parent or getParent()
+    local rgbAccent = cfg.RGBAccent ~= false
 
     local gui = new("ScreenGui", {
         Name = "RotUI_" .. tostring(math.random(1e6, 9e6)),
@@ -192,14 +231,14 @@ function Rot:CreateWindow(cfg)
     local shadow = new("Frame", {
         Name = "Shadow",
         BackgroundColor3 = Theme.Shadow,
-        BackgroundTransparency = 0.55,
+        BackgroundTransparency = 0.6,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 6, 0, 6),
+        Position = UDim2.new(0, 4, 0, 4),
         Size = size,
         ZIndex = 0,
         Parent = gui,
     })
-    corner(shadow, 14)
+    corner(shadow, 12)
 
     local win = new("Frame", {
         Name = "Window",
@@ -212,24 +251,15 @@ function Rot:CreateWindow(cfg)
         ZIndex = 2,
         Parent = gui,
     })
-    corner(win, 12)
+    corner(win, 10)
     stroke(win, Theme.Stroke, 1, 0.2)
-
-    new("Frame", {
-        Name = "Accent",
-        BackgroundColor3 = Theme.Accent,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 2),
-        ZIndex = 3,
-        Parent = win,
-    })
 
     local titleBar = new("Frame", {
         Name = "TitleBar",
         BackgroundColor3 = Theme.Surface,
         BackgroundTransparency = 0.35,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 42),
+        Size = UDim2.new(1, 0, 0, 34),
         ZIndex = 3,
         Parent = win,
     })
@@ -237,12 +267,12 @@ function Rot:CreateWindow(cfg)
     new("TextLabel", {
         Name = "Title",
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 14, 0, 0),
-        Size = UDim2.new(0.5, 0, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        Size = UDim2.new(0.6, 0, 1, 0),
         Font = Enum.Font.GothamBold,
         Text = title,
         TextColor3 = Theme.Text,
-        TextSize = 15,
+        TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 4,
         Parent = titleBar,
@@ -252,8 +282,8 @@ function Rot:CreateWindow(cfg)
         Name = "BtnRail",
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, -8, 0, 7),
-        Size = UDim2.fromOffset(120, 28),
+        Position = UDim2.new(1, -6, 0, 5),
+        Size = UDim2.fromOffset(100, 24),
         ZIndex = 4,
         Parent = titleBar,
     })
@@ -271,143 +301,30 @@ function Rot:CreateWindow(cfg)
     local maxBtn   = windowButton(btnRail, "▢", Theme.SurfaceAlt)
     local closeBtn = windowButton(btnRail, "✕", Theme.Danger)
 
+    local accentLine = new("Frame", {
+        Name = "AccentLine",
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 1, -2),
+        Size = UDim2.new(1, 0, 0, 2),
+        ZIndex = 5,
+        Parent = titleBar,
+    })
+
     local body = new("Frame", {
         Name = "Body",
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 42),
-        Size = UDim2.new(1, 0, 1, -42),
+        Position = UDim2.new(0, 0, 0, 34),
+        Size = UDim2.new(1, 0, 1, -34),
         ZIndex = 3,
         Parent = win,
     })
-    pad(body, 10)
-
-    local state = {
-        Minimized = false,
-        Fullscreen = false,
-        Visible = false,
-        OriginalSize = size,
-        OriginalPos = win.Position,
-    }
-
-    minBtn.MouseButton1Click:Connect(function()
-        state.Minimized = not state.Minimized
-        body.Visible = not state.Minimized
-        local target = state.Minimized and UDim2.new(0, size.X.Offset, 0, 42) or size
-        tween(win, 0.2, { Size = target })
-        tween(shadow, 0.2, { Size = target })
-    end)
-
-    maxBtn.MouseButton1Click:Connect(function()
-        state.Fullscreen = not state.Fullscreen
-        if state.Fullscreen then
-            state.OriginalSize = win.Size
-            state.OriginalPos = win.Position
-            local cam = workspace.CurrentCamera
-            local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-            local w, h = math.floor(vp.X * 0.9), math.floor(vp.Y * 0.9)
-            tween(win, 0.22, {
-                Size = UDim2.fromOffset(w, h),
-                Position = UDim2.new(0.5, -w / 2, 0.5, -h / 2),
-            })
-            tween(shadow, 0.22, {
-                Size = UDim2.fromOffset(w, h),
-                Position = UDim2.new(0.5, -w / 2 + 6, 0.5, -h / 2 + 6),
-            })
-        else
-            tween(win, 0.22, { Size = state.OriginalSize, Position = state.OriginalPos })
-            tween(shadow, 0.22, {
-                Size = state.OriginalSize,
-                Position = UDim2.new(
-                    state.OriginalPos.X.Scale, state.OriginalPos.X.Offset + 6,
-                    state.OriginalPos.Y.Scale, state.OriginalPos.Y.Offset + 6
-                ),
-            })
-        end
-    end)
-
-    local function setVisible(v)
-        state.Visible = v
-        if v then
-            win.Visible = true
-            win.Size = UDim2.new(0, size.X.Offset, 0, 0)
-            tween(win, 0.18, { Size = size })
-            tween(shadow, 0.18, { Size = size })
-        else
-            tween(win, 0.15, { Size = UDim2.new(0, size.X.Offset, 0, 0) })
-            tween(shadow, 0.15, { Size = UDim2.new(0, size.X.Offset, 0, 0) })
-            task.delay(0.16, function()
-                if not state.Visible then win.Visible = false end
-            end)
-        end
-    end
-
-    closeBtn.MouseButton1Click:Connect(function()
-        setVisible(false)
-    end)
-
-    makeDraggable(win, titleBar)
-
-    if toggleKey and not IS_MOBILE then
-        UserInputService.InputBegan:Connect(function(input, gpe)
-            if gpe then return end
-            if input.KeyCode == toggleKey then setVisible(not state.Visible) end
-        end)
-    end
-
-    local bubbleSize = IS_MOBILE and 56 or 48
-    local bubble = new("TextButton", {
-        Name = "ToggleBubble",
-        BackgroundColor3 = Theme.Accent,
-        BorderSizePixel = 0,
-        Size = UDim2.fromOffset(bubbleSize, bubbleSize),
-        Position = UDim2.new(0, 24, 0.5, -bubbleSize / 2),
-        Text = "R",
-        Font = Enum.Font.GothamBold,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextSize = IS_MOBILE and 22 or 18,
-        AutoButtonColor = false,
-        ZIndex = 10,
-        Parent = gui,
-    })
-    corner(bubble, bubbleSize / 2)
-    stroke(bubble, Theme.AccentDim, 2, 0)
-
-    local bubbleShadow = new("Frame", {
-        Name = "BubbleShadow",
-        BackgroundColor3 = Theme.Shadow,
-        BackgroundTransparency = 0.55,
-        BorderSizePixel = 0,
-        Size = UDim2.fromOffset(bubbleSize, bubbleSize),
-        Position = bubble.Position + UDim2.fromOffset(3, 3),
-        ZIndex = 9,
-        Parent = gui,
-    })
-    corner(bubbleShadow, bubbleSize / 2)
-
-    bubble.MouseEnter:Connect(function()
-        tween(bubble, 0.12, { BackgroundColor3 = Theme.AccentDim })
-    end)
-    bubble.MouseLeave:Connect(function()
-        tween(bubble, 0.12, { BackgroundColor3 = Theme.Accent })
-    end)
-
-    makeDraggable(bubble, bubble, function(moved)
-        if not moved then
-            setVisible(not state.Visible)
-        end
-    end)
-
-    bubble:GetPropertyChangedSignal("Position"):Connect(function()
-        bubbleShadow.Position = bubble.Position + UDim2.fromOffset(3, 3)
-    end)
-
-    local Tabs = {}
-    local currentTab
+    pad(body, 8)
 
     local tabBar = new("Frame", {
         Name = "TabBar",
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 34),
+        Size = UDim2.new(1, 0, 0, 26),
         ZIndex = 4,
         Parent = body,
     })
@@ -417,7 +334,7 @@ function Rot:CreateWindow(cfg)
         HorizontalAlignment = Enum.HorizontalAlignment.Left,
         VerticalAlignment = Enum.VerticalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 6),
+        Padding = UDim.new(0, 5),
         Parent = tabBar,
     })
 
@@ -425,21 +342,22 @@ function Rot:CreateWindow(cfg)
         Name = "Content",
         BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 0, 42),
-        Size = UDim2.new(1, 0, 1, -42),
+        Position = UDim2.new(0, 0, 0, 32),
+        Size = UDim2.new(1, 0, 1, -32),
         ZIndex = 3,
         Parent = body,
     })
-    corner(content, 10)
+    corner(content, 8)
     stroke(content, Theme.Stroke, 1, 0.5)
 
-    local contentPad = new("ScrollingFrame", {
+    local scroll = new("ScrollingFrame", {
         Name = "Scroll",
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -16, 1, -16),
-        Position = UDim2.new(0, 8, 0, 8),
+        Size = UDim2.new(1, -12, 1, -12),
+        Position = UDim2.new(0, 6, 0, 6),
         CanvasSize = UDim2.new(0, 0, 0, 0),
-        ScrollBarThickness = 4,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 3,
         ScrollBarImageColor3 = Theme.SurfaceAlt,
         BorderSizePixel = 0,
         ZIndex = 4,
@@ -450,26 +368,217 @@ function Rot:CreateWindow(cfg)
         FillDirection = Enum.FillDirection.Vertical,
         HorizontalAlignment = Enum.HorizontalAlignment.Left,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 6),
-        Parent = contentPad,
+        Padding = UDim.new(0, 5),
+        Parent = scroll,
     })
 
+    local grip = new("TextButton", {
+        Name = "ResizeGrip",
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -2, 1, -2),
+        Size = UDim2.fromOffset(18, 18),
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 8,
+        Parent = win,
+    })
+
+    local gripMark = new("Frame", {
+        BackgroundColor3 = Theme.TextDim,
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -2, 1, -2),
+        Size = UDim2.fromOffset(10, 2),
+        ZIndex = 9,
+        Parent = grip,
+    })
+    corner(gripMark, 1)
+    new("Frame", {
+        BackgroundColor3 = Theme.TextDim,
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -2, 1, -6),
+        Size = UDim2.fromOffset(6, 2),
+        ZIndex = 9,
+        Parent = grip,
+    })
+
+    local state = {
+        Minimized = false,
+        Fullscreen = false,
+        Visible = false,
+        OriginalSize = size,
+        OriginalPos = win.Position,
+        UserSize = size,
+        UserPos = win.Position,
+    }
+
+    local function applySize(sz, pos)
+        win.Size = sz
+        shadow.Size = sz
+        if pos then
+            win.Position = pos
+            shadow.Position = UDim2.new(pos.X.Scale, pos.X.Offset + 4, pos.Y.Scale, pos.Y.Offset + 4)
+        end
+    end
+
+    minBtn.MouseButton1Click:Connect(function()
+        state.Minimized = not state.Minimized
+        body.Visible = not state.Minimized
+        local target = state.Minimized and UDim2.new(0, win.AbsoluteSize.X, 0, 34) or state.UserSize
+        tween(win, 0.18, { Size = target })
+        tween(shadow, 0.18, { Size = target })
+    end)
+
+    maxBtn.MouseButton1Click:Connect(function()
+        state.Fullscreen = not state.Fullscreen
+        if state.Fullscreen then
+            state.UserSize = win.Size
+            state.UserPos  = win.Position
+            local cam = workspace.CurrentCamera
+            local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+            local w, h = math.floor(vp.X * 0.92), math.floor(vp.Y * 0.92)
+            tween(win, 0.2, {
+                Size = UDim2.fromOffset(w, h),
+                Position = UDim2.new(0.5, -w / 2, 0.5, -h / 2),
+            })
+            tween(shadow, 0.2, {
+                Size = UDim2.fromOffset(w, h),
+                Position = UDim2.new(0.5, -w / 2 + 4, 0.5, -h / 2 + 4),
+            })
+            maxBtn.Text = "❐"
+        else
+            tween(win, 0.2, { Size = state.UserSize, Position = state.UserPos })
+            tween(shadow, 0.2, {
+                Size = state.UserSize,
+                Position = UDim2.new(
+                    state.UserPos.X.Scale, state.UserPos.X.Offset + 4,
+                    state.UserPos.Y.Scale, state.UserPos.Y.Offset + 4
+                ),
+            })
+            maxBtn.Text = "▢"
+        end
+    end)
+
+    local function setVisible(v)
+        state.Visible = v
+        if v then
+            win.Visible = true
+            local target = state.Minimized and UDim2.new(0, state.UserSize.X.Offset, 0, 34) or state.UserSize
+            win.Size = UDim2.new(0, target.X.Offset, 0, 0)
+            tween(win, 0.16, { Size = target })
+            tween(shadow, 0.16, { Size = target })
+        else
+            tween(win, 0.14, { Size = UDim2.new(0, win.AbsoluteSize.X, 0, 0) })
+            tween(shadow, 0.14, { Size = UDim2.new(0, win.AbsoluteSize.X, 0, 0) })
+            task.delay(0.15, function()
+                if not state.Visible then win.Visible = false end
+            end)
+        end
+    end
+
+    closeBtn.MouseButton1Click:Connect(function()
+        setVisible(false)
+    end)
+
+    makeDraggable(win, titleBar)
+    makeResizable(win, grip, shadow, MIN_W, MIN_H)
+
+    win:GetPropertyChangedSignal("Size"):Connect(function()
+        if not state.Fullscreen and not state.Minimized then
+            state.UserSize = win.Size
+        end
+    end)
+    win:GetPropertyChangedSignal("Position"):Connect(function()
+        if not state.Fullscreen then
+            state.UserPos = win.Position
+        end
+    end)
+
+    if toggleKey and not IS_MOBILE then
+        UserInputService.InputBegan:Connect(function(input, gpe)
+            if gpe then return end
+            if input.KeyCode == toggleKey then setVisible(not state.Visible) end
+        end)
+    end
+
+    local bubbleSize = IS_MOBILE and 52 or 44
+    local bubble = new("TextButton", {
+        Name = "ToggleBubble",
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(bubbleSize, bubbleSize),
+        Position = UDim2.new(0, 20, 0.5, -bubbleSize / 2),
+        Text = "R",
+        Font = Enum.Font.GothamBold,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = IS_MOBILE and 20 or 16,
+        AutoButtonColor = false,
+        ZIndex = 10,
+        Parent = gui,
+    })
+    corner(bubble, bubbleSize / 2)
+    stroke(bubble, Theme.AccentDim, 2, 0)
+
+    local bubbleShadow = new("Frame", {
+        Name = "BubbleShadow",
+        BackgroundColor3 = Theme.Shadow,
+        BackgroundTransparency = 0.6,
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(bubbleSize, bubbleSize),
+        Position = bubble.Position + UDim2.fromOffset(3, 3),
+        ZIndex = 9,
+        Parent = gui,
+    })
+    corner(bubbleShadow, bubbleSize / 2)
+
+    makeDraggable(bubble, bubble, function(moved)
+        if not moved then setVisible(not state.Visible) end
+    end)
+
+    bubble:GetPropertyChangedSignal("Position"):Connect(function()
+        bubbleShadow.Position = bubble.Position + UDim2.fromOffset(3, 3)
+    end)
+
+    if rgbAccent then
+        task.spawn(function()
+            local hue = 0
+            while gui and gui.Parent do
+                hue = (hue + 0.0035) % 1
+                local c = hsl(hue, 0.7, 0.65)
+                accentLine.BackgroundColor3 = c
+                bubble.BackgroundColor3 = c
+                bubbleShadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                RunService.RenderStepped:Wait()
+            end
+        end)
+    end
+
+    local Tabs = {}
+    local currentTab
+
     local api = {}
-    api.Gui      = gui
-    api.Window   = win
-    api.Body     = body
-    api.Content  = contentPad
-    api.Theme    = Theme
-    api.State    = state
-    api.Bubble   = bubble
-    api.Close    = function() setVisible(false) end
-    api.Destroy  = function()
+    api.Gui     = gui
+    api.Window  = win
+    api.Body    = body
+    api.Content = scroll
+    api.Theme   = Theme
+    api.State   = state
+    api.Bubble  = bubble
+    api.Close   = function() setVisible(false) end
+    api.Destroy = function()
         pcall(function() gui.Enabled = false end)
         pcall(function() gui:Destroy() end)
     end
+    api.Toggle = function() setVisible(not state.Visible) end
 
-    api.Toggle = function()
-        setVisible(not state.Visible)
+    api.SetSize = function(w, h)
+        local sz = UDim2.fromOffset(math.max(MIN_W, w), math.max(MIN_H, h))
+        state.UserSize = sz
+        applySize(sz, win.Position)
     end
 
     function api:AddTab(name)
@@ -480,31 +589,31 @@ function Rot:CreateWindow(cfg)
             BackgroundColor3 = Theme.SurfaceAlt,
             BackgroundTransparency = 0,
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(#name * 8 + 24, 28),
+            Size = UDim2.fromOffset(#name * 7 + 20, 24),
             Font = Enum.Font.GothamMedium,
             Text = name,
             TextColor3 = Theme.TextDim,
-            TextSize = 12,
+            TextSize = 11,
             AutoButtonColor = false,
             ZIndex = 5,
             Parent = tabBar,
         })
-        corner(btn, 8)
+        corner(btn, 7)
 
         local page = new("Frame", {
             Name = "Page_" .. name,
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            AutomaticSize = Enum.AutomaticSize.Y,
             ZIndex = 4,
             Visible = false,
-            Parent = contentPad,
+            Parent = scroll,
         })
 
         new("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
             SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding = UDim.new(0, 6),
+            Padding = UDim.new(0, 5),
             Parent = page,
         })
 
@@ -516,11 +625,11 @@ function Rot:CreateWindow(cfg)
             local lbl = new("TextLabel", {
                 Name = "Label",
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 22),
+                Size = UDim2.new(1, 0, 0, 20),
                 Font = Enum.Font.Gotham,
                 Text = text or "",
                 TextColor3 = Theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 5,
                 Parent = page,
