@@ -4,16 +4,70 @@ Rot.__index = Rot
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
+
+local Theme = {
+    Background = Color3.fromRGB(12, 13, 20),
+    Surface = Color3.fromRGB(19, 21, 32),
+    Surface2 = Color3.fromRGB(27, 29, 44),
+    Accent = Color3.fromRGB(116, 85, 255),
+    Accent2 = Color3.fromRGB(69, 145, 255),
+    Text = Color3.fromRGB(242, 243, 255),
+    Muted = Color3.fromRGB(151, 157, 180),
+    Border = Color3.fromRGB(42, 45, 65),
+    Green = Color3.fromRGB(70, 220, 155)
+}
+
+local function Create(class, props, parent)
+    local obj = Instance.new(class)
+
+    for key, value in pairs(props or {}) do
+        obj[key] = value
+    end
+
+    obj.Parent = parent
+    return obj
+end
+
+local function Corner(parent, radius)
+    return Create("UICorner", {
+        CornerRadius = UDim.new(0, radius or 10)
+    }, parent)
+end
+
+local function Stroke(parent, color, transparency)
+    return Create("UIStroke", {
+        Color = color or Theme.Border,
+        Transparency = transparency or 0,
+        Thickness = 1
+    }, parent)
+end
+
+local function Tween(obj, duration, props)
+    local animation = TweenService:Create(
+        obj,
+        TweenInfo.new(duration, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        props
+    )
+
+    animation:Play()
+    return animation
+end
 
 function Rot:CreateWindow(config)
     config = config or {}
 
     local Window = {}
+    local Connections = {}
+    local Tabs = {}
+    local SelectedTab
+    local Destroyed = false
+
     local Title = config.Title or "Rot UI"
-    local Subtitle = config.Subtitle or "Welcome"
-    local LoadingTitle = config.LoadingTitle or "Loading Rot..."
+    local Subtitle = config.Subtitle or "Modern UI Library"
+    local LoadingTitle = config.LoadingTitle or "Rot UI"
 
     local Parent
 
@@ -28,139 +82,231 @@ function Rot:CreateWindow(config)
         Parent = Player:WaitForChild("PlayerGui")
     end
 
-    for _, v in ipairs(Parent:GetChildren()) do
-        if v.Name == "RotUI" or v.Name == "RotLoading" then
-            v:Destroy()
+    for _, gui in ipairs(Parent:GetChildren()) do
+        if gui.Name == "RotUI" or gui.Name == "RotLoading" then
+            gui:Destroy()
         end
     end
 
-    local LoadingGui = Instance.new("ScreenGui")
-    LoadingGui.Name = "RotLoading"
-    LoadingGui.ResetOnSpawn = false
-    LoadingGui.Parent = Parent
+    local LoadingGui = Create("ScreenGui", {
+        Name = "RotLoading",
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        DisplayOrder = 1000,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    }, Parent)
 
-    local LoadingFrame = Instance.new("Frame")
-    LoadingFrame.Size = UDim2.new(0.75, 0, 0, 70)
-    LoadingFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    LoadingFrame.Position = UDim2.fromScale(0.5, 0.5)
-    LoadingFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-    LoadingFrame.BorderSizePixel = 0
-    LoadingFrame.Parent = LoadingGui
+    local LoadingBackground = Create("Frame", {
+        Name = "Background",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Theme.Background,
+        BorderSizePixel = 0
+    }, LoadingGui)
 
-    Instance.new("UICorner", LoadingFrame).CornerRadius =
-        UDim.new(0, 10)
+    local Glow = Create("Frame", {
+        Size = UDim2.fromOffset(240, 240),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.43),
+        BackgroundColor3 = Theme.Accent,
+        BackgroundTransparency = 0.91,
+        BorderSizePixel = 0
+    }, LoadingBackground)
+    Corner(Glow, 120)
 
-    local LoadingLabel = Instance.new("TextLabel")
-    LoadingLabel.Size = UDim2.fromScale(1, 1)
-    LoadingLabel.BackgroundTransparency = 1
-    LoadingLabel.Text = LoadingTitle
-    LoadingLabel.TextColor3 = Color3.new(1, 1, 1)
-    LoadingLabel.TextSize = 16
-    LoadingLabel.Font = Enum.Font.GothamSemibold
-    LoadingLabel.Parent = LoadingFrame
+    local LoadingCard = Create("Frame", {
+        Name = "LoadingCard",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(330, 205),
+        BackgroundColor3 = Theme.Surface,
+        BorderSizePixel = 0
+    }, LoadingBackground)
 
-    local Gui = Instance.new("ScreenGui")
-    Gui.Name = "RotUI"
-    Gui.ResetOnSpawn = false
-    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    Gui.Parent = Parent
+    Create("UISizeConstraint", {
+        MinSize = Vector2.new(260, 205),
+        MaxSize = Vector2.new(380, 205)
+    }, LoadingCard)
 
-    local Main = Instance.new("Frame")
-    Main.Name = "Main"
+    LoadingCard.Size = UDim2.new(0.86, 0, 0, 205)
+    Corner(LoadingCard, 16)
+    Stroke(LoadingCard)
 
-    if config.Size then
-        Main.Size = config.Size
-    elseif UIS.TouchEnabled then
-        Main.Size = UDim2.new(0.92, 0, 0.65, 0)
-    else
-        Main.Size = UDim2.fromOffset(520, 360)
-    end
+    local Logo = Create("TextLabel", {
+        Position = UDim2.new(0, 0, 0, 14),
+        Size = UDim2.new(1, 0, 0, 48),
+        BackgroundTransparency = 1,
+        Text = "R",
+        TextColor3 = Theme.Accent,
+        TextSize = 42,
+        Font = Enum.Font.GothamBlack
+    }, LoadingCard)
 
-    Main.AnchorPoint = Vector2.new(0.5, 0.5)
-    Main.Position = UDim2.fromScale(0.5, 0.5)
-    Main.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-    Main.BorderSizePixel = 0
-    Main.ClipsDescendants = true
-    Main.Parent = Gui
+    local LoadingName = Create("TextLabel", {
+        Position = UDim2.new(0, 10, 0, 61),
+        Size = UDim2.new(1, -20, 0, 28),
+        BackgroundTransparency = 1,
+        Text = LoadingTitle,
+        TextColor3 = Theme.Text,
+        TextSize = 20,
+        Font = Enum.Font.GothamBold,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, LoadingCard)
 
-    Instance.new("UICorner", Main).CornerRadius =
-        UDim.new(0, 10)
+    local LoadingSubtitle = Create("TextLabel", {
+        Position = UDim2.new(0, 10, 0, 89),
+        Size = UDim2.new(1, -20, 0, 20),
+        BackgroundTransparency = 1,
+        Text = "Initializing your experience",
+        TextColor3 = Theme.Muted,
+        TextSize = 11,
+        Font = Enum.Font.Gotham
+    }, LoadingCard)
 
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Color3.fromRGB(55, 55, 68)
-    Stroke.Parent = Main
+    local ProgressBack = Create("Frame", {
+        Position = UDim2.new(0, 20, 0, 132),
+        Size = UDim2.new(1, -40, 0, 5),
+        BackgroundColor3 = Theme.Surface2,
+        BorderSizePixel = 0,
+        ClipsDescendants = true
+    }, LoadingCard)
+    Corner(ProgressBack, 6)
 
-    local Topbar = Instance.new("Frame")
-    Topbar.Name = "Topbar"
-    Topbar.Size = UDim2.new(1, 0, 0, 58)
-    Topbar.BackgroundColor3 = Color3.fromRGB(29, 29, 37)
-    Topbar.BorderSizePixel = 0
-    Topbar.Parent = Main
+    local Progress = Create("Frame", {
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0
+    }, ProgressBack)
+    Corner(Progress, 6)
 
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Position = UDim2.fromOffset(12, 5)
-    TitleLabel.Size = UDim2.new(1, -95, 0, 24)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = Title
-    TitleLabel.TextColor3 = Color3.new(1, 1, 1)
-    TitleLabel.TextSize = 15
-    TitleLabel.Font = Enum.Font.GothamSemibold
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    TitleLabel.Parent = Topbar
+    local Status = Create("TextLabel", {
+        Position = UDim2.new(0, 20, 0, 145),
+        Size = UDim2.new(1, -40, 0, 20),
+        BackgroundTransparency = 1,
+        Text = "Preparing interface...",
+        TextColor3 = Theme.Muted,
+        TextSize = 10,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, LoadingCard)
 
-    local SubtitleLabel = Instance.new("TextLabel")
-    SubtitleLabel.Position = UDim2.fromOffset(12, 29)
-    SubtitleLabel.Size = UDim2.new(1, -95, 0, 19)
-    SubtitleLabel.BackgroundTransparency = 1
-    SubtitleLabel.Text = Subtitle
-    SubtitleLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
-    SubtitleLabel.TextSize = 11
-    SubtitleLabel.Font = Enum.Font.Gotham
-    SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    SubtitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    SubtitleLabel.Parent = Topbar
+    local Percent = Create("TextLabel", {
+        Position = UDim2.new(1, -65, 0, 145),
+        Size = UDim2.fromOffset(45, 20),
+        BackgroundTransparency = 1,
+        Text = "0%",
+        TextColor3 = Theme.Text,
+        TextSize = 10,
+        Font = Enum.Font.GothamSemibold,
+        TextXAlignment = Enum.TextXAlignment.Right
+    }, LoadingCard)
 
-    local Close = Instance.new("TextButton")
-    Close.Size = UDim2.fromOffset(28, 28)
-    Close.Position = UDim2.new(1, -36, 0, 15)
-    Close.BackgroundColor3 = Color3.fromRGB(190, 55, 65)
-    Close.Text = "×"
-    Close.TextColor3 = Color3.new(1, 1, 1)
-    Close.TextSize = 20
-    Close.Font = Enum.Font.GothamBold
-    Close.Parent = Topbar
+    local Gui = Create("ScreenGui", {
+        Name = "RotUI",
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        DisplayOrder = 999,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    }, Parent)
 
-    Instance.new("UICorner", Close).CornerRadius =
-        UDim.new(0, 6)
+    local Main = Create("Frame", {
+        Name = "Main",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.53),
+        Size = config.Size or UDim2.new(0.9, 0, 0.72, 0),
+        BackgroundColor3 = Theme.Background,
+        BorderSizePixel = 0,
+        Visible = false,
+        ClipsDescendants = true
+    }, Gui)
 
-    local TabBar = Instance.new("ScrollingFrame")
-    TabBar.Name = "TabBar"
-    TabBar.Position = UDim2.fromOffset(8, 64)
-    TabBar.Size = UDim2.new(1, -16, 0, 34)
-    TabBar.BackgroundTransparency = 1
-    TabBar.BorderSizePixel = 0
-    TabBar.ScrollBarThickness = 0
-    TabBar.ScrollingDirection = Enum.ScrollingDirection.X
-    TabBar.AutomaticCanvasSize = Enum.AutomaticSize.X
-    TabBar.CanvasSize = UDim2.new()
-    TabBar.Parent = Main
+    Create("UISizeConstraint", {
+        MinSize = Vector2.new(280, 250),
+        MaxSize = Vector2.new(760, 580)
+    }, Main)
 
-    local TabLayout = Instance.new("UIListLayout")
-    TabLayout.FillDirection = Enum.FillDirection.Horizontal
-    TabLayout.Padding = UDim.new(0, 6)
-    TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    TabLayout.Parent = TabBar
+    Corner(Main, 14)
+    Stroke(Main)
 
-    local Content = Instance.new("Frame")
-    Content.Name = "Content"
-    Content.Position = UDim2.fromOffset(8, 104)
-    Content.Size = UDim2.new(1, -16, 1, -112)
-    Content.BackgroundTransparency = 1
-    Content.Parent = Main
+    local Topbar = Create("Frame", {
+        Name = "Topbar",
+        Size = UDim2.new(1, 0, 0, 54),
+        BackgroundColor3 = Theme.Surface,
+        BorderSizePixel = 0
+    }, Main)
 
-    local Tabs = {}
-    local SelectedTab
+    local Brand = Create("TextLabel", {
+        Position = UDim2.fromOffset(14, 7),
+        Size = UDim2.fromOffset(35, 38),
+        BackgroundTransparency = 1,
+        Text = "R",
+        TextColor3 = Theme.Accent,
+        TextSize = 30,
+        Font = Enum.Font.GothamBlack
+    }, Topbar)
+
+    local TitleLabel = Create("TextLabel", {
+        Position = UDim2.fromOffset(49, 7),
+        Size = UDim2.new(1, -125, 0, 22),
+        BackgroundTransparency = 1,
+        Text = Title,
+        TextColor3 = Theme.Text,
+        TextSize = 15,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, Topbar)
+
+    local SubtitleLabel = Create("TextLabel", {
+        Position = UDim2.fromOffset(50, 29),
+        Size = UDim2.new(1, -130, 0, 16),
+        BackgroundTransparency = 1,
+        Text = Subtitle,
+        TextColor3 = Theme.Muted,
+        TextSize = 10,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, Topbar)
+
+    local Close = Create("TextButton", {
+        Name = "Close",
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -12, 0.5, 0),
+        Size = UDim2.fromOffset(30, 30),
+        BackgroundColor3 = Theme.Surface2,
+        Text = "×",
+        TextColor3 = Theme.Muted,
+        TextSize = 20,
+        Font = Enum.Font.Gotham,
+        AutoButtonColor = false
+    }, Topbar)
+    Corner(Close, 8)
+
+    local TabBar = Create("ScrollingFrame", {
+        Name = "TabBar",
+        Position = UDim2.fromOffset(10, 62),
+        Size = UDim2.new(1, -20, 0, 37),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 0,
+        ScrollingDirection = Enum.ScrollingDirection.X,
+        AutomaticCanvasSize = Enum.AutomaticSize.X,
+        CanvasSize = UDim2.new()
+    }, Main)
+
+    local TabLayout = Create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    }, TabBar)
+
+    local Content = Create("Frame", {
+        Name = "Content",
+        Position = UDim2.fromOffset(10, 108),
+        Size = UDim2.new(1, -20, 1, -118),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true
+    }, Main)
 
     local function SelectTab(tab)
         SelectedTab = tab
@@ -168,109 +314,116 @@ function Rot:CreateWindow(config)
         for _, item in ipairs(Tabs) do
             item.Page.Visible = item == tab
 
-            item.Button.BackgroundColor3 =
-                item == tab
-                and Color3.fromRGB(75, 75, 105)
-                or Color3.fromRGB(35, 35, 44)
+            Tween(item.Button, 0.18, {
+                BackgroundColor3 = item == tab
+                    and Theme.Accent
+                    or Theme.Surface
+            })
 
-            item.Button.TextColor3 =
-                item == tab
+            item.Button.TextColor3 = item == tab
                 and Color3.new(1, 1, 1)
-                or Color3.fromRGB(175, 175, 190)
+                or Theme.Muted
         end
     end
 
     function Window:AddTab(name)
-        name = tostring(name or "Tab")
-
         local Tab = {}
-        local Index = #Tabs + 1
+        local index = #Tabs + 1
 
-        local Button = Instance.new("TextButton")
-        Button.Name = "Tab_" .. Index
-        Button.Size = UDim2.fromOffset(100, 30)
-        Button.BackgroundColor3 = Color3.fromRGB(35, 35, 44)
-        Button.Text = name
-        Button.TextColor3 = Color3.fromRGB(175, 175, 190)
-        Button.TextSize = 12
-        Button.Font = Enum.Font.GothamSemibold
-        Button.TextTruncate = Enum.TextTruncate.AtEnd
-        Button.LayoutOrder = Index
-        Button.Parent = TabBar
+        local Button = Create("TextButton", {
+            Name = "Tab_" .. index,
+            Size = UDim2.fromOffset(105, 33),
+            BackgroundColor3 = Theme.Surface,
+            Text = tostring(name or "Tab"),
+            TextColor3 = Theme.Muted,
+            TextSize = 12,
+            Font = Enum.Font.GothamSemibold,
+            AutoButtonColor = false,
+            LayoutOrder = index
+        }, TabBar)
+        Corner(Button, 8)
 
-        Instance.new("UICorner", Button).CornerRadius =
-            UDim.new(0, 6)
+        local Page = Create("ScrollingFrame", {
+            Name = "Page_" .. index,
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = Theme.Accent,
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            CanvasSize = UDim2.new(),
+            Visible = false
+        }, Content)
 
-        local Page = Instance.new("ScrollingFrame")
-        Page.Name = "Page_" .. Index
-        Page.Size = UDim2.fromScale(1, 1)
-        Page.BackgroundTransparency = 1
-        Page.BorderSizePixel = 0
-        Page.ScrollBarThickness = 3
-        Page.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 125)
-        Page.CanvasSize = UDim2.new()
-        Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        Page.ScrollingDirection = Enum.ScrollingDirection.Y
-        Page.Visible = false
-        Page.Parent = Content
+        Create("UIListLayout", {
+            Padding = UDim.new(0, 8),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        }, Page)
 
-        local Layout = Instance.new("UIListLayout")
-        Layout.Padding = UDim.new(0, 7)
-        Layout.SortOrder = Enum.SortOrder.LayoutOrder
-        Layout.Parent = Page
-
-        local Padding = Instance.new("UIPadding")
-        Padding.PaddingTop = UDim.new(0, 3)
-        Padding.PaddingBottom = UDim.new(0, 5)
-        Padding.PaddingLeft = UDim.new(0, 2)
-        Padding.PaddingRight = UDim.new(0, 2)
-        Padding.Parent = Page
+        Create("UIPadding", {
+            PaddingTop = UDim.new(0, 4),
+            PaddingBottom = UDim.new(0, 8),
+            PaddingLeft = UDim.new(0, 2),
+            PaddingRight = UDim.new(0, 2)
+        }, Page)
 
         Tab.Button = Button
         Tab.Page = Page
-        Tab.Layout = Layout
 
         function Tab:AddLabel(text)
-            local Label = Instance.new("TextLabel")
-            Label.Name = "Label"
-            Label.Size = UDim2.new(1, -4, 0, 34)
-            Label.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-            Label.BorderSizePixel = 0
-            Label.Text = tostring(text or "")
-            Label.TextColor3 = Color3.fromRGB(225, 225, 235)
-            Label.TextSize = 13
-            Label.Font = Enum.Font.Gotham
-            Label.TextWrapped = true
-            Label.TextXAlignment = Enum.TextXAlignment.Left
-            Label.AutomaticSize = Enum.AutomaticSize.Y
-            Label.LayoutOrder = #Page:GetChildren()
-            Label.Parent = Page
+            local LabelFrame = Create("Frame", {
+                Name = "Label",
+                Size = UDim2.new(1, -4, 0, 42),
+                BackgroundColor3 = Theme.Surface,
+                BorderSizePixel = 0,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                ClipsDescendants = true
+            }, Page)
+            Corner(LabelFrame, 9)
+            Stroke(LabelFrame, Theme.Border, 0.2)
 
-            local LabelPadding = Instance.new("UIPadding")
-            LabelPadding.PaddingLeft = UDim.new(0, 10)
-            LabelPadding.PaddingRight = UDim.new(0, 8)
-            LabelPadding.PaddingTop = UDim.new(0, 8)
-            LabelPadding.PaddingBottom = UDim.new(0, 8)
-            LabelPadding.Parent = Label
+            Create("Frame", {
+                Position = UDim2.new(0, 0, 0, 8),
+                Size = UDim2.new(0, 3, 1, -16),
+                BackgroundColor3 = Theme.Accent,
+                BorderSizePixel = 0
+            }, LabelFrame)
 
-            Instance.new("UICorner", Label).CornerRadius =
-                UDim.new(0, 6)
+            local TextLabel = Create("TextLabel", {
+                Name = "Text",
+                Position = UDim2.fromOffset(13, 0),
+                Size = UDim2.new(1, -25, 0, 42),
+                BackgroundTransparency = 1,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Text = tostring(text or ""),
+                TextColor3 = Theme.Text,
+                TextSize = 12,
+                Font = Enum.Font.Gotham,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center
+            }, LabelFrame)
+
+            Create("UIPadding", {
+                PaddingTop = UDim.new(0, 11),
+                PaddingBottom = UDim.new(0, 11)
+            }, TextLabel)
 
             local LabelObject = {}
 
             function LabelObject:SetText(newText)
-                Label.Text = tostring(newText)
+                TextLabel.Text = tostring(newText)
             end
 
             function LabelObject:SetVisible(visible)
-                Label.Visible = visible
+                LabelFrame.Visible = visible
             end
 
             function LabelObject:Destroy()
-                Label:Destroy()
+                LabelFrame:Destroy()
             end
 
-            LabelObject.Instance = Label
+            LabelObject.Instance = LabelFrame
             return LabelObject
         end
 
@@ -284,7 +437,6 @@ function Rot:CreateWindow(config)
             SelectTab(Tab)
         end
 
-        Tab.Instance = Page
         return Tab
     end
 
@@ -297,10 +449,18 @@ function Rot:CreateWindow(config)
     end
 
     function Window:Destroy()
-        Gui:Destroy()
-        if LoadingGui.Parent then
-            LoadingGui:Destroy()
+        if Destroyed then
+            return
         end
+
+        Destroyed = true
+
+        for _, connection in ipairs(Connections) do
+            connection:Disconnect()
+        end
+
+        Gui:Destroy()
+        LoadingGui:Destroy()
     end
 
     local dragging = false
@@ -308,7 +468,7 @@ function Rot:CreateWindow(config)
     local startPosition
     local dragInput
 
-    Topbar.InputBegan:Connect(function(input)
+    table.insert(Connections, Topbar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
 
@@ -322,16 +482,16 @@ function Rot:CreateWindow(config)
                 end
             end)
         end
-    end)
+    end))
 
-    Topbar.InputChanged:Connect(function(input)
+    table.insert(Connections, Topbar.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement
             or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
-    end)
+    end))
 
-    local DragConnection = UIS.InputChanged:Connect(function(input)
+    table.insert(Connections, UIS.InputChanged:Connect(function(input)
         if dragging and input == dragInput then
             local delta = input.Position - dragStart
 
@@ -342,11 +502,72 @@ function Rot:CreateWindow(config)
                 startPosition.Y.Offset + delta.Y
             )
         end
-    end)
+    end))
 
-    Close.Activated:Connect(function()
-        DragConnection:Disconnect()
-        Gui:Destroy()
+    table.insert(Connections, Close.Activated:Connect(function()
+        Window:Destroy()
+    end))
+
+    table.insert(Connections, Close.MouseEnter:Connect(function()
+        Tween(Close, 0.15, {
+            BackgroundColor3 = Color3.fromRGB(190, 60, 80)
+        })
+    end))
+
+    table.insert(Connections, Close.MouseLeave:Connect(function()
+        Tween(Close, 0.15, {
+            BackgroundColor3 = Theme.Surface2
+        })
+    end))
+
+    task.spawn(function()
+        local stages = {
+            {0.22, "Preparing interface..."},
+            {0.48, "Building components..."},
+            {0.72, "Loading library..."},
+            {0.90, "Applying theme..."},
+            {1, "Ready!"}
+        }
+
+        for _, stage in ipairs(stages) do
+            if Destroyed or not LoadingGui.Parent then
+                return
+            end
+
+            Status.Text = stage[2]
+            Percent.Text = math.floor(stage[1] * 100) .. "%"
+
+            Tween(Progress, 0.35, {
+                Size = UDim2.new(stage[1], 0, 1, 0)
+            })
+
+            task.wait(0.38)
+        end
+
+        if Destroyed then
+            return
+        end
+
+        task.wait(0.25)
+
+        if not Gui.Parent then
+            return
+        end
+
+        Main.Visible = true
+        Main.BackgroundTransparency = 1
+        Main.Position = UDim2.fromScale(0.5, 0.54)
+
+        Tween(Main, 0.35, {
+            BackgroundTransparency = 0,
+            Position = UDim2.fromScale(0.5, 0.5)
+        })
+
+        Tween(LoadingBackground, 0.25, {
+            BackgroundTransparency = 1
+        })
+
+        task.wait(0.28)
 
         if LoadingGui.Parent then
             LoadingGui:Destroy()
@@ -357,12 +578,6 @@ function Rot:CreateWindow(config)
     Window.Main = Main
     Window.Content = Content
     Window.TabBar = TabBar
-
-    task.delay(1, function()
-        if LoadingGui.Parent then
-            LoadingGui:Destroy()
-        end
-    end)
 
     return Window
 end
