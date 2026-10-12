@@ -3,164 +3,315 @@ local Rot = {}
 Rot.__index = Rot
 
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
 
-local LocalPlayer = Players.LocalPlayer
+local Player = Players.LocalPlayer
 
 function Rot:CreateWindow(config)
     config = config or {}
 
     local Window = {}
-
     local Title = config.Title or "Rot UI"
     local Subtitle = config.Subtitle or "Welcome"
-    local LoadingTitle = config.LoadingTitle or "Rot"
-    local Size = config.Size or UDim2.fromOffset(520, 360)
+    local LoadingTitle = config.LoadingTitle or "Loading Rot..."
 
-    local parent
+    local Parent
 
     if type(gethui) == "function" then
-        local success, result = pcall(gethui)
-        if success and result then
-            parent = result
+        local ok, result = pcall(gethui)
+        if ok and result then
+            Parent = result
         end
     end
 
-    if not parent then
-        parent = LocalPlayer:WaitForChild("PlayerGui")
+    if not Parent then
+        Parent = Player:WaitForChild("PlayerGui")
     end
 
-    for _, gui in ipairs(parent:GetChildren()) do
-        if gui.Name == "RotUI" or gui.Name == "RotLoading" then
-            gui:Destroy()
+    for _, v in ipairs(Parent:GetChildren()) do
+        if v.Name == "RotUI" or v.Name == "RotLoading" then
+            v:Destroy()
         end
     end
 
     local LoadingGui = Instance.new("ScreenGui")
     LoadingGui.Name = "RotLoading"
     LoadingGui.ResetOnSpawn = false
-    LoadingGui.Parent = parent
+    LoadingGui.Parent = Parent
 
     local LoadingFrame = Instance.new("Frame")
-    LoadingFrame.Size = UDim2.fromOffset(300, 100)
-    LoadingFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
-    LoadingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    LoadingFrame.Size = UDim2.new(0.75, 0, 0, 70)
+    LoadingFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    LoadingFrame.Position = UDim2.fromScale(0.5, 0.5)
+    LoadingFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
     LoadingFrame.BorderSizePixel = 0
     LoadingFrame.Parent = LoadingGui
 
-    Instance.new("UICorner", LoadingFrame).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", LoadingFrame).CornerRadius =
+        UDim.new(0, 10)
 
     local LoadingLabel = Instance.new("TextLabel")
-    LoadingLabel.Size = UDim2.new(1, -20, 1, 0)
-    LoadingLabel.Position = UDim2.fromOffset(10, 0)
+    LoadingLabel.Size = UDim2.fromScale(1, 1)
     LoadingLabel.BackgroundTransparency = 1
     LoadingLabel.Text = LoadingTitle
-    LoadingLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
-    LoadingLabel.TextSize = 18
+    LoadingLabel.TextColor3 = Color3.new(1, 1, 1)
+    LoadingLabel.TextSize = 16
     LoadingLabel.Font = Enum.Font.GothamSemibold
     LoadingLabel.Parent = LoadingFrame
 
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "RotUI"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.Parent = parent
+    local Gui = Instance.new("ScreenGui")
+    Gui.Name = "RotUI"
+    Gui.ResetOnSpawn = false
+    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    Gui.Parent = Parent
 
     local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.Size = Size
-    Main.Position = UDim2.new(0.5, -Size.X.Offset / 2, 0.5, -Size.Y.Offset / 2)
-    Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+
+    if config.Size then
+        Main.Size = config.Size
+    elseif UIS.TouchEnabled then
+        Main.Size = UDim2.new(0.92, 0, 0.65, 0)
+    else
+        Main.Size = UDim2.fromOffset(520, 360)
+    end
+
+    Main.AnchorPoint = Vector2.new(0.5, 0.5)
+    Main.Position = UDim2.fromScale(0.5, 0.5)
+    Main.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
     Main.BorderSizePixel = 0
-    Main.Parent = ScreenGui
+    Main.ClipsDescendants = true
+    Main.Parent = Gui
 
-    Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", Main).CornerRadius =
+        UDim.new(0, 10)
 
-    local MainStroke = Instance.new("UIStroke")
-    MainStroke.Color = Color3.fromRGB(55, 55, 68)
-    MainStroke.Parent = Main
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Color3.fromRGB(55, 55, 68)
+    Stroke.Parent = Main
 
     local Topbar = Instance.new("Frame")
     Topbar.Name = "Topbar"
-    Topbar.Size = UDim2.new(1, 0, 0, 64)
-    Topbar.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
+    Topbar.Size = UDim2.new(1, 0, 0, 58)
+    Topbar.BackgroundColor3 = Color3.fromRGB(29, 29, 37)
     Topbar.BorderSizePixel = 0
     Topbar.Parent = Main
 
-    Instance.new("UICorner", Topbar).CornerRadius = UDim.new(0, 10)
-
-    local TopbarCover = Instance.new("Frame")
-    TopbarCover.Size = UDim2.new(1, 0, 0, 10)
-    TopbarCover.Position = UDim2.new(0, 0, 1, -10)
-    TopbarCover.BackgroundColor3 = Topbar.BackgroundColor3
-    TopbarCover.BorderSizePixel = 0
-    TopbarCover.Parent = Topbar
-
     local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Name = "Title"
-    TitleLabel.Position = UDim2.fromOffset(14, 7)
-    TitleLabel.Size = UDim2.new(1, -110, 0, 25)
+    TitleLabel.Position = UDim2.fromOffset(12, 5)
+    TitleLabel.Size = UDim2.new(1, -95, 0, 24)
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Text = Title
-    TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
-    TitleLabel.TextSize = 16
+    TitleLabel.TextColor3 = Color3.new(1, 1, 1)
+    TitleLabel.TextSize = 15
     TitleLabel.Font = Enum.Font.GothamSemibold
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
     TitleLabel.Parent = Topbar
 
     local SubtitleLabel = Instance.new("TextLabel")
-    SubtitleLabel.Name = "Subtitle"
-    SubtitleLabel.Position = UDim2.fromOffset(14, 32)
-    SubtitleLabel.Size = UDim2.new(1, -110, 0, 20)
+    SubtitleLabel.Position = UDim2.fromOffset(12, 29)
+    SubtitleLabel.Size = UDim2.new(1, -95, 0, 19)
     SubtitleLabel.BackgroundTransparency = 1
     SubtitleLabel.Text = Subtitle
-    SubtitleLabel.TextColor3 = Color3.fromRGB(155, 155, 170)
-    SubtitleLabel.TextSize = 12
+    SubtitleLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
+    SubtitleLabel.TextSize = 11
     SubtitleLabel.Font = Enum.Font.Gotham
     SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    SubtitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
     SubtitleLabel.Parent = Topbar
 
-    local Minimize = Instance.new("TextButton")
-    Minimize.Name = "Minimize"
-    Minimize.Size = UDim2.fromOffset(28, 28)
-    Minimize.Position = UDim2.new(1, -68, 0, 18)
-    Minimize.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-    Minimize.Text = "-"
-    Minimize.TextColor3 = Color3.new(1, 1, 1)
-    Minimize.TextSize = 20
-    Minimize.Font = Enum.Font.GothamBold
-    Minimize.Parent = Topbar
-
-    Instance.new("UICorner", Minimize).CornerRadius = UDim.new(0, 6)
-
     local Close = Instance.new("TextButton")
-    Close.Name = "Close"
     Close.Size = UDim2.fromOffset(28, 28)
-    Close.Position = UDim2.new(1, -34, 0, 18)
+    Close.Position = UDim2.new(1, -36, 0, 15)
     Close.BackgroundColor3 = Color3.fromRGB(190, 55, 65)
     Close.Text = "×"
     Close.TextColor3 = Color3.new(1, 1, 1)
-    Close.TextSize = 19
+    Close.TextSize = 20
     Close.Font = Enum.Font.GothamBold
     Close.Parent = Topbar
 
-    Instance.new("UICorner", Close).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", Close).CornerRadius =
+        UDim.new(0, 6)
+
+    local TabBar = Instance.new("ScrollingFrame")
+    TabBar.Name = "TabBar"
+    TabBar.Position = UDim2.fromOffset(8, 64)
+    TabBar.Size = UDim2.new(1, -16, 0, 34)
+    TabBar.BackgroundTransparency = 1
+    TabBar.BorderSizePixel = 0
+    TabBar.ScrollBarThickness = 0
+    TabBar.ScrollingDirection = Enum.ScrollingDirection.X
+    TabBar.AutomaticCanvasSize = Enum.AutomaticSize.X
+    TabBar.CanvasSize = UDim2.new()
+    TabBar.Parent = Main
+
+    local TabLayout = Instance.new("UIListLayout")
+    TabLayout.FillDirection = Enum.FillDirection.Horizontal
+    TabLayout.Padding = UDim.new(0, 6)
+    TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    TabLayout.Parent = TabBar
 
     local Content = Instance.new("Frame")
     Content.Name = "Content"
-    Content.Position = UDim2.fromOffset(10, 74)
-    Content.Size = UDim2.new(1, -20, 1, -84)
+    Content.Position = UDim2.fromOffset(8, 104)
+    Content.Size = UDim2.new(1, -16, 1, -112)
     Content.BackgroundTransparency = 1
     Content.Parent = Main
 
+    local Tabs = {}
+    local SelectedTab
+
+    local function SelectTab(tab)
+        SelectedTab = tab
+
+        for _, item in ipairs(Tabs) do
+            item.Page.Visible = item == tab
+
+            item.Button.BackgroundColor3 =
+                item == tab
+                and Color3.fromRGB(75, 75, 105)
+                or Color3.fromRGB(35, 35, 44)
+
+            item.Button.TextColor3 =
+                item == tab
+                and Color3.new(1, 1, 1)
+                or Color3.fromRGB(175, 175, 190)
+        end
+    end
+
+    function Window:AddTab(name)
+        name = tostring(name or "Tab")
+
+        local Tab = {}
+        local Index = #Tabs + 1
+
+        local Button = Instance.new("TextButton")
+        Button.Name = "Tab_" .. Index
+        Button.Size = UDim2.fromOffset(100, 30)
+        Button.BackgroundColor3 = Color3.fromRGB(35, 35, 44)
+        Button.Text = name
+        Button.TextColor3 = Color3.fromRGB(175, 175, 190)
+        Button.TextSize = 12
+        Button.Font = Enum.Font.GothamSemibold
+        Button.TextTruncate = Enum.TextTruncate.AtEnd
+        Button.LayoutOrder = Index
+        Button.Parent = TabBar
+
+        Instance.new("UICorner", Button).CornerRadius =
+            UDim.new(0, 6)
+
+        local Page = Instance.new("ScrollingFrame")
+        Page.Name = "Page_" .. Index
+        Page.Size = UDim2.fromScale(1, 1)
+        Page.BackgroundTransparency = 1
+        Page.BorderSizePixel = 0
+        Page.ScrollBarThickness = 3
+        Page.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 125)
+        Page.CanvasSize = UDim2.new()
+        Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        Page.ScrollingDirection = Enum.ScrollingDirection.Y
+        Page.Visible = false
+        Page.Parent = Content
+
+        local Layout = Instance.new("UIListLayout")
+        Layout.Padding = UDim.new(0, 7)
+        Layout.SortOrder = Enum.SortOrder.LayoutOrder
+        Layout.Parent = Page
+
+        local Padding = Instance.new("UIPadding")
+        Padding.PaddingTop = UDim.new(0, 3)
+        Padding.PaddingBottom = UDim.new(0, 5)
+        Padding.PaddingLeft = UDim.new(0, 2)
+        Padding.PaddingRight = UDim.new(0, 2)
+        Padding.Parent = Page
+
+        Tab.Button = Button
+        Tab.Page = Page
+        Tab.Layout = Layout
+
+        function Tab:AddLabel(text)
+            local Label = Instance.new("TextLabel")
+            Label.Name = "Label"
+            Label.Size = UDim2.new(1, -4, 0, 34)
+            Label.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+            Label.BorderSizePixel = 0
+            Label.Text = tostring(text or "")
+            Label.TextColor3 = Color3.fromRGB(225, 225, 235)
+            Label.TextSize = 13
+            Label.Font = Enum.Font.Gotham
+            Label.TextWrapped = true
+            Label.TextXAlignment = Enum.TextXAlignment.Left
+            Label.AutomaticSize = Enum.AutomaticSize.Y
+            Label.LayoutOrder = #Page:GetChildren()
+            Label.Parent = Page
+
+            local LabelPadding = Instance.new("UIPadding")
+            LabelPadding.PaddingLeft = UDim.new(0, 10)
+            LabelPadding.PaddingRight = UDim.new(0, 8)
+            LabelPadding.PaddingTop = UDim.new(0, 8)
+            LabelPadding.PaddingBottom = UDim.new(0, 8)
+            LabelPadding.Parent = Label
+
+            Instance.new("UICorner", Label).CornerRadius =
+                UDim.new(0, 6)
+
+            local LabelObject = {}
+
+            function LabelObject:SetText(newText)
+                Label.Text = tostring(newText)
+            end
+
+            function LabelObject:SetVisible(visible)
+                Label.Visible = visible
+            end
+
+            function LabelObject:Destroy()
+                Label:Destroy()
+            end
+
+            LabelObject.Instance = Label
+            return LabelObject
+        end
+
+        Button.Activated:Connect(function()
+            SelectTab(Tab)
+        end)
+
+        table.insert(Tabs, Tab)
+
+        if not SelectedTab then
+            SelectTab(Tab)
+        end
+
+        Tab.Instance = Page
+        return Tab
+    end
+
+    function Window:SetTitle(text)
+        TitleLabel.Text = tostring(text)
+    end
+
+    function Window:SetSubtitle(text)
+        SubtitleLabel.Text = tostring(text)
+    end
+
+    function Window:Destroy()
+        Gui:Destroy()
+        if LoadingGui.Parent then
+            LoadingGui:Destroy()
+        end
+    end
+
     local dragging = false
-    local dragInput
     local dragStart
     local startPosition
+    local dragInput
 
     Topbar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
+
             dragging = true
             dragStart = input.Position
             startPosition = Main.Position
@@ -180,7 +331,7 @@ function Rot:CreateWindow(config)
         end
     end)
 
-    UserInputService.InputChanged:Connect(function(input)
+    local DragConnection = UIS.InputChanged:Connect(function(input)
         if dragging and input == dragInput then
             local delta = input.Position - dragStart
 
@@ -193,57 +344,25 @@ function Rot:CreateWindow(config)
         end
     end)
 
-    local minimized = false
-    local expandedSize = Main.Size
+    Close.Activated:Connect(function()
+        DragConnection:Disconnect()
+        Gui:Destroy()
 
-    Minimize.MouseButton1Click:Connect(function()
-        minimized = not minimized
-
-        if minimized then
-            expandedSize = Main.Size
-            Content.Visible = false
-            Main.Size = UDim2.new(
-                expandedSize.X.Scale,
-                expandedSize.X.Offset,
-                0,
-                64
-            )
-            Minimize.Text = "+"
-        else
-            Main.Size = expandedSize
-            Content.Visible = true
-            Minimize.Text = "-"
-        end
-    end)
-
-    Close.MouseButton1Click:Connect(function()
-        ScreenGui:Destroy()
-    end)
-
-    task.wait(1)
-    if LoadingGui.Parent then
-        LoadingGui:Destroy()
-    end
-
-    Window.Gui = ScreenGui
-    Window.Main = Main
-    Window.Topbar = Topbar
-    Window.Content = Content
-
-    function Window:SetTitle(newTitle)
-        TitleLabel.Text = tostring(newTitle)
-    end
-
-    function Window:SetSubtitle(newSubtitle)
-        SubtitleLabel.Text = tostring(newSubtitle)
-    end
-
-    function Window:Destroy()
-        ScreenGui:Destroy()
         if LoadingGui.Parent then
             LoadingGui:Destroy()
         end
-    end
+    end)
+
+    Window.Gui = Gui
+    Window.Main = Main
+    Window.Content = Content
+    Window.TabBar = TabBar
+
+    task.delay(1, function()
+        if LoadingGui.Parent then
+            LoadingGui:Destroy()
+        end
+    end)
 
     return Window
 end
